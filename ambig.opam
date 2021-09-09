@@ -1,0 +1,17 @@
+synopsis:     "Coq Plugin Template"
+description:  "Coq Plugin Template"
+name:         "ambig"
+opam-version: "2.0"
+maintainer:   "your@mail.org"
+authors:      "You Name"
+homepage:     "https://github.com/your-github/my-plugin"
+bug-reports:  "https://github.com/your-github/my-plugin"
+dev-repo:     "git+https://github.com/your-github/my-plugin"
+license:      "GPL 3"
+doc:          "https://your-github.github.io/my-plugin/doc"
+
+depends: [
+  "coq-stdpp"         { >= "1.5.0"            }
+]
+
+build: [ "dune" "build" "-p" name "-j" jobs ]
