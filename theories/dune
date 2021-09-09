@@ -1,4 +1,4 @@
 (coq.theory
   (name ambig)
   (package ambig)
-  (synopsis "ambig"))
+  (synopsis "ambiguity theory"))

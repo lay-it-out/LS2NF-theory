@@ -237,8 +237,7 @@ Ltac exist_tree :=
   end.
 
 Lemma amb_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
-  0 < k → amb_encoding G m k → sentence_ambiguous 
-  (* bounded_ambiguous G. *)
+  0 < k → amb_encoding G m k → bounded_ambiguous G.
 Proof.
   intros Hgt [Hm [δ [A [Hk [HA [ψ1 [ψ2 [Hne [Hin1 [Hin2 [Hψ1 Hψ2]]]]]]]]]]].
   exists A, (decode m 0 δ).
