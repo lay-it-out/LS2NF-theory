@@ -9,12 +9,14 @@ Record model (Σ N : Type) := {
   line : nat → nat;
   col : nat → nat;
   can_derive : N → nat (* start (inclusive) *) → nat (* delta = end (inclusive) - start *) → bool;
+  can_reach : N → nat (* start (inclusive) *) → nat (* delta = end (inclusive) - start *) → bool;
 }.
 
 Arguments token {_} {_}.
 Arguments line {_} {_}.
 Arguments col {_} {_}.
 Arguments can_derive {_} {_}.
+Arguments can_reach {_} {_}.
 
 Fixpoint decode {Σ N : Type} (m : model Σ N) (x δ : nat) : sentence Σ :=
   token m x @ (line m x, col m x) ::
@@ -114,7 +116,40 @@ Proof.
     all: apply IHδ; auto; lia.
 Qed.
 
-(* encoding ambiguity *)
+(* encoding reachability *)
+Definition reachable_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (k : nat) : Prop :=
+  ∀ B x δ, x + δ < k →
+    can_reach m B x δ = true →
+    (B = start G ∧ x = 0 ∧ δ = k - 1) ∨
+    (∃ A φ, G ⊢ A ↦ unary B φ ∧ can_reach m A x δ = true ∧ φ (decode m x δ)) ∨
+    (∃ A B' φ δ', G ⊢ A ↦ binary B B' φ ∧ can_reach m A x (δ + δ' + 1) ∧
+      can_derive m B' (x + δ + 1) δ' = true ∧ φ (decode m x δ) (decode m (x + δ + 1) δ')) ∨
+    (∃ A B' φ x', G ⊢ A ↦ binary B' B φ ∧ can_reach m A x' (x - x' + δ) ∧
+      can_derive m B' x' (x - x' - 1) = true ∧ φ (decode m x' (x - x' - 1)) (decode m x δ)).
+
+(* TODO: we need well-founded induction, but in the other way around:
+  nonterminals : start symbol is base case
+  range : full range (of length k) is base case
+*)
+Lemma reachable_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
+  membership_formula G m k ∧ reachable_encoding G m k →
+  ∀ x δ B, x + δ < k →
+    can_reach m B x δ = true → reachable G B (decode m x δ).
+Proof.
+  move => [Hm Hr].
+  induction δ as [δ IHδ] using lt_wf_ind.
+  move => B Hδ Hc.
+  edestruct Hr as [? | [? | [? | ?]]]; eauto.
+  - destruct H as [-> [-> ->]]. constructor.
+  - destruct H as [A [φ [? [? ?]]]].
+    eapply reachable_unary; eauto. admit.
+  - destruct H as [A [B' [φ [? [? [? [? ?]]]]]]].
+    eapply reachable_left; eauto.
+    * have -> : x0 = (x0 + δ + 1) - δ - 1 by lia.
+      rewrite decode_merge; first lia.
+      admit.
+    * eapply encode_sound => //. admit.
+Admitted.
 
 Inductive ψ_formula (Σ N : Type) : Type :=
   | ψ_atom : Σ → ψ_formula Σ N
@@ -237,13 +272,12 @@ Ltac exist_tree :=
   end.
 
 Lemma amb_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
-  0 < k → amb_encoding G m k → bounded_ambiguous G.
+  0 < k → amb_encoding G m k → ambiguous G.
 Proof.
-  intros Hgt [Hm [δ [A [Hk [HA [ψ1 [ψ2 [Hne [Hin1 [Hin2 [Hψ1 Hψ2]]]]]]]]]]].
+  (* intros Hgt [Hm [δ [A [Hk [HA [ψ1 [ψ2 [Hne [Hin1 [Hin2 [Hψ1 Hψ2]]]]]]]]]]].
   exists A, (decode m 0 δ).
   pose (ψ_witness _ _ _ _ _ _ Hm Hgt Hk HA Hin1 Hψ1) as H1.
   pose (ψ_witness _ _ _ _ _ _ Hm Hgt Hk HA Hin2 Hψ2) as H2.
   destruct ψ1; destruct ψ2; simpl in H1; simpl in H2; split_exist_and; exist_tree.
-  all: simpl; try done.
-  (* TODO : for every ψ1, ψ2 ∈ ψ_intro G A, nonterminals at first level must differ *)
+  all: simpl; try done. *)
 Admitted.

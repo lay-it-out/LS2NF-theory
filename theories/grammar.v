@@ -77,75 +77,28 @@ Fixpoint sentence_of {Σ N : Type} (t : tree Σ N) : sentence Σ :=
   | binary_tree _ t1 t2 => sentence_of t1 ++ sentence_of t2
   end.
 
-Inductive valid {Σ N : Type} : grammar Σ N → tree Σ N → Prop :=
-  | valid_ε_tree G R :
-    G ⊢ R ↦ ε →
-    valid G (ε_tree R)
-  | valid_token_tree G R a p :
-    G ⊢ R ↦ atom a →
-    valid G (token_tree R (a @ p))
-  | valid_unary_tree G R A φ t w :
-    G ⊢ R ↦ unary A φ →
-    root t = A →
-    valid G t →
-    sentence_of t = w →
+Reserved Notation "t ▷ A ={ G }=> w" (at level 40).
+
+Inductive witness {Σ N : Type} (G : grammar Σ N) : tree Σ N → N → sentence Σ → Prop :=
+  | ε_tree_witness A :
+    G ⊢ A ↦ ε →
+    ε_tree A ▷ A ={ G }=> []
+  | token_tree_witness A a p :
+    G ⊢ A ↦ atom a →
+    token_tree A (a @ p) ▷ A ={ G }=> [a @ p]
+  | unary_tree_witness A B φ t w :
+    G ⊢ A ↦ unary B φ →
+    t ▷ B ={G}=> w →
     (w ≠ [] → φ w) →
-    valid G (unary_tree R t)
-  | valid_binary_tree G R A B φ t1 t2 w1 w2 :
-    G ⊢ R ↦ binary A B φ →
-    valid G t1 →
-    valid G t2 →
-    root t1 = A →
-    root t2 = B →
-    sentence_of t1 = w1 →
-    sentence_of t2 = w2 →
+    unary_tree A t ▷ A ={ G }=> w
+  | binary_tree_witness A B1 B2 φ t1 w1 t2 w2 :
+    G ⊢ A ↦ binary B1 B2 φ →
+    t1 ▷ B1 ={G}=> w1 →
+    t2 ▷ B2 ={G}=> w2 →
     (w1 ≠ [] → w2 ≠ [] → φ w1 w2) →
-    valid G (binary_tree R t1 t2)
-  .
-
-Notation "✓{ G } t" := (valid G t) (at level 70, format "'✓{' G '}'  t").
-
-Definition witness {Σ N : Type} (t : tree Σ N) (G : grammar Σ N) (A : N) (w : sentence Σ) : Prop :=
-  ✓{G} t ∧ root t = A ∧ sentence_of t = w.
-
-Notation "t ▷ A ={ G }=> w" := (witness t G A w) (at level 40).
-
-Lemma ε_tree_witness {Σ N : Type} (G : grammar Σ N) A :
-  G ⊢ A ↦ ε → (ε_tree A) ▷ A ={G}=> [].
-Proof.
-  intros. repeat split.
-  by constructor.
-Qed.
-
-Lemma token_tree_witness {Σ N : Type} (G : grammar Σ N) A a p :
-  G ⊢ A ↦ atom a → (token_tree A (a @ p)) ▷ A ={G}=> [a @ p].
-Proof.
-  intros. repeat split.
-  by constructor.
-Qed.
-
-Lemma unary_tree_witness {Σ N : Type} (G : grammar Σ N) A B φ w t :
-  G ⊢ A ↦ unary B φ →
-  t ▷ B ={G}=> w →
-  (w ≠ [] → φ w) →
-  (unary_tree A t) ▷ A ={G}=> w.
-Proof.
-  intros ? [? [? ?]]. repeat split.
-  - econstructor; eauto.
-  - by simpl.
-Qed.
-
-Lemma binary_tree_witness {Σ N : Type} (G : grammar Σ N) A B C φ w1 w2 t1 t2 :
-  G ⊢ A ↦ binary B C φ →
-  t1 ▷ B ={G}=> w1 →
-  t2 ▷ C ={G}=> w2 →
-  (w1 ≠ [] → w2 ≠ [] → φ w1 w2) →
-  (binary_tree A t1 t2) ▷ A ={G}=> (w1 ++ w2).
-Proof.
-  intros ? [? [? ?]] [? [? ?]]. repeat split.
-  - econstructor; eauto.
-  - simpl. congruence.
-Qed.
+    binary_tree A t1 t2 ▷ A ={G}=> (w1 ++ w2)
+  
+  where "t ▷ A ={ G }=> w" := (witness G t A w).
 
 (* derivation *)
 
@@ -159,16 +112,14 @@ Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
 Lemma derive_ε {Σ N : Type} (G : grammar Σ N) A :
   G ⊢ A ↦ ε → G ⊨ A ⇒ [].
 Proof.
-  intros. exists (ε_tree A). 
-  split; last done.
-  by constructor.
+  intros. exists (ε_tree A).
+  by constructor. 
 Qed.
 
 Lemma derive_atom {Σ N : Type} (G : grammar Σ N) A a p :
   G ⊢ A ↦ atom a → G ⊨ A ⇒ [a @ p].
 Proof.
   intros. exists (token_tree A (a @ p)).
-  split; last done.
   by constructor.
 Qed.
 
@@ -178,8 +129,7 @@ Lemma derive_unary {Σ N : Type} (G : grammar Σ N) A B (φ : unary_predicate Σ
   (w ≠ [] → φ w) →
   G ⊨ A ⇒ w.
 Proof.
-  intros ? [t [? [? ?]]] ?. exists (unary_tree A t).
-  split; last done.
+  intros ? [t ?] ?. exists (unary_tree A t).
   econstructor; eauto.
 Qed.
 
@@ -190,10 +140,9 @@ Lemma derive_binary {Σ N : Type} (G : grammar Σ N) A B C (φ : binary_predicat
   (w1 ≠ [] → w2 ≠ [] → φ w1 w2) →
   G ⊨ A ⇒ w1 ++ w2.
 Proof.
-  intros ? [t1 [? [? Hw1]]] [t2 [? [? Hw2]]] ?.
-  exists (binary_tree A t1 t2). repeat split.
-  - econstructor; eauto.
-  - simpl. by rewrite Hw1 Hw2.
+  intros ? [t1 ?] [t2 ?] ?.
+  exists (binary_tree A t1 t2).
+  econstructor; eauto.
 Qed.
 
 (* nullability *)
@@ -211,11 +160,9 @@ Lemma binary_nullable_l {Σ N : Type} (G : grammar Σ N) A B φ E w :
   G ⊨ B ⇒ w →
   G ⊨ A ⇒ w.
 Proof.
-  intros ? Hn [t [? [? Hw]]].
-  destruct (nullable_spec _ _ Hn) as [tε [? [? Hε]]].
-  exists (binary_tree A tε t). repeat split.
-  - by econstructor; eauto.
-  - simpl. by rewrite Hw Hε app_nil_l.
+  intros. rewrite <- app_nil_l.
+  eapply derive_binary; eauto; last naive_solver.
+  by apply nullable_spec.
 Qed.
 
 Lemma binary_nullable_r {Σ N : Type} (G : grammar Σ N) A B φ E w :
@@ -224,11 +171,9 @@ Lemma binary_nullable_r {Σ N : Type} (G : grammar Σ N) A B φ E w :
   G ⊨ B ⇒ w →
   G ⊨ A ⇒ w.
 Proof.
-  intros ? Hn [t [? [? Hw]]].
-  destruct (nullable_spec _ _ Hn) as [tε [? [? Hε]]].
-  exists (binary_tree A t tε). repeat split.
-  - by econstructor; eauto.
-  - simpl. by rewrite Hw Hε app_nil_r.
+  intros. rewrite <- app_nil_r.
+  eapply derive_binary; eauto; last naive_solver.
+  by apply nullable_spec.
 Qed.
 
 (* Lemma nonterm_derive {Σ N : Type} (G : grammar Σ N) A w :
