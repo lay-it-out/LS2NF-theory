@@ -136,8 +136,8 @@ Lemma reachable_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k 
   ∀ x δ B, x + δ < k →
     can_reach m B x δ = true → reachable G B (decode m x δ).
 Proof.
-  move => [Hm Hr].
-  induction δ as [δ IHδ] using lt_wf_ind.
+  move => [Hm Hr] x δ.
+  induction (k - δ) as [? IHδ] using lt_wf_ind.
   move => B Hδ Hc.
   edestruct Hr as [? | [? | [? | ?]]]; eauto.
   - destruct H as [-> [-> ->]]. constructor.
