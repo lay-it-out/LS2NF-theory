@@ -4,12 +4,12 @@ From ambig Require Import grammar.
 
 (* standard notion of ambiguity *)
 
-Definition sentence_ambiguous {Σ N : Type} (G : grammar Σ N) (w : sentence Σ) : Prop :=
+Definition sentence_ambiguous {Σ N : Type} (G : grammar Σ N) (A : N) (w : sentence Σ) : Prop :=
   ∃ t1 t2 : tree Σ N,
-    (t1 ▷ (start G) ={G}=> w) ∧ (t2 ▷ (start G) ={G}=> w) ∧ t1 ≠ t2.
+    (t1 ▷ A ={G}=> w) ∧ (t2 ▷ A ={G}=> w) ∧ t1 ≠ t2.
 
 Definition ambiguous {Σ N : Type} (G : grammar Σ N) :=
-  ∃ w, sentence_ambiguous G w.
+  ∃ w, sentence_ambiguous G (start G) w.
 
 (* similarity *)
 
@@ -337,8 +337,8 @@ Proof.
 Qed.
 
 Lemma sentence_ambiguous_iff {Σ N : Type} `{EqDecision N} `{EqDecision (token Σ)}
-  (G : grammar Σ N) w :
-  sentence_ambiguous G w ↔ ∃ H h, reachable G (start G) w H h ∧
+  (G : grammar Σ N) A w :
+  sentence_ambiguous G A w ↔ ∃ H h, reachable G A w H h ∧
     ∃ t1 t2, t1 ▷ H ={G}=> h ∧ t2 ▷ H ={G}=> h ∧ ¬ (similar t1 t2).
 Proof.
   split.
