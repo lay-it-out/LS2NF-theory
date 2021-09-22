@@ -10,6 +10,9 @@ Record token (Σ : Type) := {
   pos : position;
 }.
 
+Arguments letter {_}.
+Arguments pos {_}.
+
 Notation "a @ p" := {|
   letter := a;
   pos := p;
@@ -77,28 +80,32 @@ Fixpoint sentence_of {Σ N : Type} (t : tree Σ N) : sentence Σ :=
   | binary_tree _ t1 t2 => sentence_of t1 ++ sentence_of t2
   end.
 
-Reserved Notation "t ▷ A ={ G }=> w" (at level 40).
-
-Inductive witness {Σ N : Type} (G : grammar Σ N) : tree Σ N → N → sentence Σ → Prop :=
-  | ε_tree_witness A :
+Inductive valid {Σ N : Type} (G : grammar Σ N) : tree Σ N → Prop :=
+  | valid_ε A :
     G ⊢ A ↦ ε →
-    ε_tree A ▷ A ={ G }=> []
-  | token_tree_witness A a p :
+    valid G (ε_tree A)
+  | valid_token A a p :
     G ⊢ A ↦ atom a →
-    token_tree A (a @ p) ▷ A ={ G }=> [a @ p]
-  | unary_tree_witness A B φ t w :
-    G ⊢ A ↦ unary B φ →
-    t ▷ B ={G}=> w →
-    (w ≠ [] → φ w) →
-    unary_tree A t ▷ A ={ G }=> w
-  | binary_tree_witness A B1 B2 φ t1 w1 t2 w2 :
-    G ⊢ A ↦ binary B1 B2 φ →
-    t1 ▷ B1 ={G}=> w1 →
-    t2 ▷ B2 ={G}=> w2 →
-    (w1 ≠ [] → w2 ≠ [] → φ w1 w2) →
-    binary_tree A t1 t2 ▷ A ={G}=> (w1 ++ w2)
-  
-  where "t ▷ A ={ G }=> w" := (witness G t A w).
+    valid G (token_tree A (a @ p))
+  | valid_unary A t' φ :
+    G ⊢ A ↦ unary (root t') φ →
+    valid G t' →
+    (let w := sentence_of t' in w ≠ [] → φ w) →
+    valid G (unary_tree A t')
+  | valid_binary A t1 t2 φ :
+    G ⊢ A ↦ binary (root t1) (root t2) φ →
+    valid G t1 →
+    valid G t2 →
+    (let w1 := sentence_of t1 in let w2 := sentence_of t2 in w1 ≠ [] → w2 ≠ [] → φ w1 w2) →
+    valid G (binary_tree A t1 t2)
+  .
+
+Notation "✓{ G } t" := (valid G t) (at level 40, format "'✓{' G '}'  t").
+
+Definition witness {Σ N : Type} (G : grammar Σ N) (t : tree Σ N) (A : N) (w : sentence Σ) :=
+  root t = A ∧ sentence_of t = w ∧ ✓{G} t.
+
+Notation "t ▷ A ={ G }=> w" := (witness G t A w) (at level 40).
 
 (* derivation *)
 
@@ -113,14 +120,14 @@ Lemma derive_ε {Σ N : Type} (G : grammar Σ N) A :
   G ⊢ A ↦ ε → G ⊨ A ⇒ [].
 Proof.
   intros. exists (ε_tree A).
-  by constructor. 
+  repeat split. by constructor.
 Qed.
 
 Lemma derive_atom {Σ N : Type} (G : grammar Σ N) A a p :
   G ⊢ A ↦ atom a → G ⊨ A ⇒ [a @ p].
 Proof.
   intros. exists (token_tree A (a @ p)).
-  by constructor.
+  repeat split. by constructor.
 Qed.
 
 Lemma derive_unary {Σ N : Type} (G : grammar Σ N) A B (φ : unary_predicate Σ) w :
@@ -129,8 +136,8 @@ Lemma derive_unary {Σ N : Type} (G : grammar Σ N) A B (φ : unary_predicate Σ
   (w ≠ [] → φ w) →
   G ⊨ A ⇒ w.
 Proof.
-  intros ? [t ?] ?. exists (unary_tree A t).
-  econstructor; eauto.
+  intros ? [t [? [? ?]]] ?. exists (unary_tree A t).
+  repeat split => //. econstructor; naive_solver.
 Qed.
 
 Lemma derive_binary {Σ N : Type} (G : grammar Σ N) A B C (φ : binary_predicate Σ) w1 w2 :
@@ -140,9 +147,9 @@ Lemma derive_binary {Σ N : Type} (G : grammar Σ N) A B C (φ : binary_predicat
   (w1 ≠ [] → w2 ≠ [] → φ w1 w2) →
   G ⊨ A ⇒ w1 ++ w2.
 Proof.
-  intros ? [t1 ?] [t2 ?] ?.
+  intros ? [t1 [? [? ?]]] [t2 [? [? ?]]] ?.
   exists (binary_tree A t1 t2).
-  econstructor; eauto.
+  repeat split => //. naive_solver. econstructor; naive_solver.
 Qed.
 
 (* nullability *)

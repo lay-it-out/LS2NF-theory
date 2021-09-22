@@ -117,6 +117,7 @@ Proof.
 Qed.
 
 (* encoding reachability *)
+(*
 Definition reachable_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (k : nat) : Prop :=
   ∀ B x δ, x + δ < k →
     can_reach m B x δ = true →
@@ -281,3 +282,4 @@ Proof.
   destruct ψ1; destruct ψ2; simpl in H1; simpl in H2; split_exist_and; exist_tree.
   all: simpl; try done. *)
 Admitted.
+*)
