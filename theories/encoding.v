@@ -139,10 +139,6 @@ Proof.
   - by apply derive_nonterm_refl.
 Qed.
 
-(* TODO: we need well-founded induction, but in the other way around:
-  nonterminals : start symbol is base case
-  range : full range (of length k) is base case
-*)
 Lemma can_reach_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
   membership_formula G m k ∧ reachable_encoding G m k →
   ∀ A x δ H xH δH, x + δ ≤ k → xH + δH ≤ k →

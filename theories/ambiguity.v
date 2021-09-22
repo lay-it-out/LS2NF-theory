@@ -236,7 +236,7 @@ Proof.
 Qed.
 
 (* diff two trees with same root and sentence *)
-Fixpoint diff {Σ N : Type} `{EqDecision N} `{EqDecision (token Σ)}
+Fixpoint diff {Σ N : Type} `{!EqDecision N} `{!EqDecision (token Σ)}
   (t1 t2 : tree Σ N) : option (tree Σ N * tree Σ N) :=
   match t1, t2 with
   | ε_tree _, ε_tree _ => None
@@ -295,8 +295,7 @@ Proof.
   generalize dependent t2.
   induction t1 => t2.
   all: destruct t2 => //= -> Hw Hdiff.
-  all: inversion Hdiff; subst; clear Hdiff.
-  all: try naive_solver.
+  all: inversion Hdiff; subst; clear Hdiff => //.
   - case_bool_decide.
     * eapply IHt1; eauto.
     * inversion H0; subst; clear H0. done.
