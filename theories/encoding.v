@@ -8,8 +8,8 @@ Record model (Σ N : Type) := {
   token : nat → Σ;
   line : nat → nat;
   col : nat → nat;
-  can_derive : N → nat (* start (inclusive) *) → nat (* delta = end (inclusive) - start *) → bool;
-  can_reach : N → nat (* start (inclusive) *) → nat (* delta = end (inclusive) - start *) → bool;
+  can_derive : N → nat (* start (inclusive) *) → nat (* length *) → bool;
+  can_reach : N → nat (* start (inclusive) *) → nat (* length *) → N → nat → nat → bool;
 }.
 
 Arguments token {_} {_}.
@@ -19,15 +19,14 @@ Arguments can_derive {_} {_}.
 Arguments can_reach {_} {_}.
 
 Fixpoint decode {Σ N : Type} (m : model Σ N) (x δ : nat) : sentence Σ :=
-  token m x @ (line m x, col m x) ::
-    match δ with
-    | 0 => []
-    | S n => decode m (S x) n
-    end.
+  match δ with
+  | 0 => []
+  | S n => token m x @ (line m x, col m x) :: decode m (S x) n
+  end.
 
 Lemma decode_merge {Σ N : Type} (m : model Σ N) x δ δ' :
   δ' < δ →
-  decode m x δ' ++ decode m (x + δ' + 1) (δ - δ' - 1) = decode m x δ.
+  decode m x δ' ++ decode m (x + δ') (δ - δ') = decode m x δ.
 (* Proof.
   intros.
   generalize dependent x.
@@ -44,11 +43,12 @@ Admitted.
 (* encoding membership *)
 
 Definition φ_atom {Σ N : Type} (G : grammar Σ N) (A : N) (x δ : nat) (m : model Σ N) : Prop :=
-  δ = 0 ∧ ∃ a, G ⊢ A ↦ atom a ∧ token m x = a.
+  δ = 1 ∧ ∃ a, G ⊢ A ↦ atom a ∧ token m x = a.
 
 Definition φ_unary {Σ N : Type} (G : grammar Σ N) (A : N) x δ (m : model Σ N) : Prop :=
   ∃ B φ, G ⊢ A ↦ unary B φ ∧ can_derive m B x δ = true ∧ φ (decode m x δ).
 
+(* Why consider nullable cases? *)
 Definition φ_binary_null_l {Σ N : Type} (G : grammar Σ N) (A : N) (x δ : nat) (m : model Σ N) : Prop :=
   ∃ E B φ, G ⊢ A ↦ binary E B φ ∧ nullable G E = true ∧ can_derive m B x δ = true.
 
@@ -56,19 +56,19 @@ Definition φ_binary_null_r {Σ N : Type} (G : grammar Σ N) (A : N) (x δ : nat
   ∃ B E φ, G ⊢ A ↦ binary B E φ ∧ nullable G E = true ∧ can_derive m B x δ = true.
 
 Definition φ_binary {Σ N : Type} (G : grammar Σ N) (A : N) (x δ : nat) (m : model Σ N) : Prop :=
-  δ > 0 ∧ ∃ δ' B1 B2 φ, δ' < δ ∧ G ⊢ A ↦ binary B1 B2 φ ∧
+  δ > 1 ∧ ∃ δ' B1 B2 φ, 0 < δ' < δ ∧ G ⊢ A ↦ binary B1 B2 φ ∧
     can_derive m B1 x δ' = true ∧
-    can_derive m B2 (x + δ' + 1) (δ - δ' - 1) = true ∧
-    φ (decode m x δ') (decode m (x + δ' + 1) (δ - δ' - 1)).
+    can_derive m B2 (x + δ') (δ - δ') = true ∧
+    φ (decode m x δ') (decode m (x + δ') (δ - δ')).
 
 Definition membership_formula {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (k : nat) : Prop :=
-  ∀ x δ, x + δ < k → ∀ A,
+  ∀ x δ, x + δ ≤ k → ∀ A,
     can_derive m A x δ = true →
     φ_atom G A x δ m ∨ φ_unary G A x δ m ∨
     φ_binary_null_l G A x δ m ∨ φ_binary_null_r G A x δ m ∨
     φ_binary G A x δ m.
 
-Lemma encode_sound_aux {Σ N : Type} G `{!Acyclic G} (m : model Σ N) (A : N) B x δ :
+Lemma can_derive_sound_aux {Σ N : Type} G `{!Acyclic G} (m : model Σ N) (A : N) B x δ :
   A ⇒{G} B →
   can_derive m B x δ = true →
   G ⊨ B ⇒ decode m x δ.
@@ -79,9 +79,9 @@ Proof.
   - by apply derive_nonterm_refl.
 Qed.
 
-Lemma encode_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
+Lemma can_derive_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
   membership_formula G m k →
-  ∀ x δ, x + δ < k → ∀ A,
+  ∀ x δ, x + δ ≤ k → ∀ A,
     can_derive m A x δ = true → G ⊨ A ⇒ decode m x δ.
 Proof.
   intros Hf x δ Hk.
@@ -95,63 +95,88 @@ Proof.
   - clear IHδ.
     destruct Hf as [B [φ [HP [HB Hφ]]]].
     eapply derive_unary; eauto.
-    apply @encode_sound_aux with (A := A).
+    apply @can_derive_sound_aux with (A := A).
     2: eapply derive_nonterm_unary; eauto.
     all: done.
   - clear IHδ.
     destruct Hf as [E [B [φ [HP [HE HB]]]]].
     eapply binary_nullable_l; eauto.
-    apply @encode_sound_aux with (A := A).
+    apply @can_derive_sound_aux with (A := A).
     2: eapply derive_nonterm_binary_nullable_l; eauto.
     all: done.
   - clear IHδ.
     destruct Hf as [B [E [φ [HP [HE HB]]]]].
     eapply binary_nullable_r; eauto.
-    apply @encode_sound_aux with (A := A).
+    apply @can_derive_sound_aux with (A := A).
     2: eapply derive_nonterm_binary_nullable_r; eauto.
     all: done.
   - destruct Hf as [Hδ [δ' [B1 [B2 [φ [Hδ' [HP [HB1 [HB2 Hφ]]]]]]]]].
-    erewrite <- decode_merge; last eauto.
+    rewrite <- (decode_merge _ _ _ δ'); last lia.
     eapply derive_binary; eauto.
     all: apply IHδ; auto; lia.
 Qed.
 
 (* encoding reachability *)
-(*
+
 Definition reachable_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (k : nat) : Prop :=
-  ∀ B x δ, x + δ < k →
-    can_reach m B x δ = true →
-    (B = start G ∧ x = 0 ∧ δ = k - 1) ∨
-    (∃ A φ, G ⊢ A ↦ unary B φ ∧ can_reach m A x δ = true ∧ φ (decode m x δ)) ∨
-    (∃ A B' φ δ', G ⊢ A ↦ binary B B' φ ∧ can_reach m A x (δ + δ' + 1) ∧
-      can_derive m B' (x + δ + 1) δ' = true ∧ φ (decode m x δ) (decode m (x + δ + 1) δ')) ∨
-    (∃ A B' φ x', G ⊢ A ↦ binary B' B φ ∧ can_reach m A x' (x - x' + δ) ∧
-      can_derive m B' x' (x - x' - 1) = true ∧ φ (decode m x' (x - x' - 1)) (decode m x δ)).
+  ∀ A x δ H xH δH, x + δ ≤ k → xH + δH ≤ k →
+    can_reach m A x δ H xH δH = true →
+    (A = H ∧ xH = x ∧ δH = δ) ∨
+    (∃ B φ, G ⊢ A ↦ unary B φ ∧ can_reach m B x δ H xH δH = true ∧ φ (decode m x δ)) ∨
+    (∃ Bl Br φ δ', 0 < δ' < δ ∧ G ⊢ A ↦ binary Bl Br φ ∧ can_reach m Bl x δ' H xH δH = true ∧
+      can_derive m Br (x + δ') (δ - δ') = true ∧ φ (decode m x δ') (decode m (x + δ') (δ - δ'))) ∨
+    (∃ Bl Br φ δ', 0 < δ' < δ ∧ G ⊢ A ↦ binary Bl Br φ ∧ can_reach m Br (x + δ') (δ - δ') H xH δH = true ∧
+      can_derive m Bl x δ' = true ∧ φ (decode m x δ') (decode m (x + δ') (δ - δ'))).
+
+Lemma can_reach_encoding_sound_aux {Σ N : Type} G `{!Acyclic G} (m : model Σ N) (A : N) B x δ H xH δH :
+  A ⇒{G} B →
+  can_reach m B x δ H xH δH = true →
+  reachable G B (decode m x δ) H (decode m xH δH).
+Proof.
+  induction A as [A IHA] using (well_founded_induction N_lt_wf).
+  intros. apply (IHA B); last done.
+  - by apply acyclic.
+  - by apply derive_nonterm_refl.
+Qed.
 
 (* TODO: we need well-founded induction, but in the other way around:
   nonterminals : start symbol is base case
   range : full range (of length k) is base case
 *)
-Lemma reachable_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
+Lemma can_reach_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
   membership_formula G m k ∧ reachable_encoding G m k →
-  ∀ x δ B, x + δ < k →
-    can_reach m B x δ = true → reachable G B (decode m x δ).
+  ∀ A x δ H xH δH, x + δ ≤ k → xH + δH ≤ k →
+    can_reach m A x δ H xH δH = true → reachable G A (decode m x δ) H (decode m xH δH).
 Proof.
-  move => [Hm Hr] x δ.
-  induction (k - δ) as [? IHδ] using lt_wf_ind.
-  move => B Hδ Hc.
-  edestruct Hr as [? | [? | [? | ?]]]; eauto.
-  - destruct H as [-> [-> ->]]. constructor.
-  - destruct H as [A [φ [? [? ?]]]].
-    eapply reachable_unary; eauto. admit.
-  - destruct H as [A [B' [φ [? [? [? [? ?]]]]]]].
+  intros [Hm Hr] A x δ H xH δH.
+  generalize dependent A.
+  generalize dependent x.
+  induction δ as [δ IHδ] using lt_wf_ind.
+  intros x A Hk1 Hk2 HA.
+  specialize (Hr _ _ _ _ _ _ Hk1 Hk2 HA).
+  repeat destruct Hr as [Hr | Hr].
+  - destruct Hr as [-> [-> ->]].
+    constructor.
+  - clear IHδ.
+    destruct Hr as [B [φ [HP [HB Hφ]]]].
+    eapply reachable_unary; eauto.
+    apply @can_reach_encoding_sound_aux with (A := A); eauto.
+    econstructor; eauto.
+  - destruct Hr as [Bl [Br [φ [δ' [? [? [? [? ?]]]]]]]].
+    rewrite <- (decode_merge _ _ _ δ'); last lia.
     eapply reachable_left; eauto.
-    * have -> : x0 = (x0 + δ + 1) - δ - 1 by lia.
-      rewrite decode_merge; first lia.
-      admit.
-    * eapply encode_sound => //. admit.
-Admitted.
+    * apply IHδ; [lia.. | done].
+    * eapply can_derive_sound; eauto. lia.
+  - destruct Hr as [Bl [Br [φ [δ' [? [? [? [? ?]]]]]]]].
+    rewrite <- (decode_merge _ _ _ δ'); last lia.
+    eapply reachable_right; eauto.
+    * apply IHδ; [lia.. | done].
+    * eapply can_derive_sound; eauto. lia.
+Qed.
 
+(* encoding ¬ similar t1 t2 *)
+
+(*
 Inductive ψ_formula (Σ N : Type) : Type :=
   | ψ_atom : Σ → ψ_formula Σ N
   | ψ_unary : N → unary_predicate Σ → ψ_formula Σ N

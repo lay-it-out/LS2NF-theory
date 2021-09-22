@@ -34,7 +34,7 @@ Qed.
 
 (* reachable *)
 
-Inductive reachable {Σ N : Type} (G : grammar Σ N) : N → sentence Σ → N → sentence Σ → Prop :=
+Inductive reachable {Σ N : Type} (G : grammar Σ N) : N → sentence Σ (* TODO: necessary? *) → N → sentence Σ → Prop :=
   | reachable_refl S w :
     reachable G S w S w
   | reachable_unary A B w φ H h :
