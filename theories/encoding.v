@@ -1,6 +1,6 @@
 From stdpp Require Import relations.
 From Coq Require Import ssreflect.
-From ambig Require Import grammar ambiguity.
+From ambig Require Import grammar local_amb.
 
 (* sat model *)
 

@@ -2,15 +2,6 @@ From Coq Require Import ssreflect.
 From stdpp Require Import prelude.
 From ambig Require Import grammar.
 
-(* standard notion of ambiguity *)
-
-Definition sentence_ambiguous {Σ N : Type} (G : grammar Σ N) (A : N) (w : sentence Σ) : Prop :=
-  ∃ t1 t2 : tree Σ N,
-    (t1 ▷ A ={G}=> w) ∧ (t2 ▷ A ={G}=> w) ∧ t1 ≠ t2.
-
-Definition ambiguous {Σ N : Type} (G : grammar Σ N) :=
-  ∃ w, sentence_ambiguous G (start G) w.
-
 (* similarity *)
 
 (* assume input trees have same root and word *)

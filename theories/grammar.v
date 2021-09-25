@@ -225,6 +225,15 @@ Proof.
   all: by apply nonterm_derive.
 Qed. *)
 
+(* standard notion of ambiguity *)
+
+Definition sentence_ambiguous {Σ N : Type} (G : grammar Σ N) (A : N) (w : sentence Σ) : Prop :=
+  ∃ t1 t2 : tree Σ N,
+    (t1 ▷ A ={G}=> w) ∧ (t2 ▷ A ={G}=> w) ∧ t1 ≠ t2.
+
+Definition ambiguous {Σ N : Type} (G : grammar Σ N) :=
+  ∃ w, sentence_ambiguous G (start G) w.
+
 (* acyclic *)
 
 Inductive derive_nonterm {Σ N : Type} : grammar Σ N → N → N → Prop :=
