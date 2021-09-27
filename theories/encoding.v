@@ -5,14 +5,14 @@ From ambig Require Import grammar acyclic reachable ambiguity.
 (* sat model *)
 
 Record model (Σ N : Type) := {
-  tok : nat → Σ;
+  term : nat → Σ;
   line : nat → nat;
   col : nat → nat;
   can_derive : N → nat (* start (inclusive) *) → nat (* length *) → bool;
   can_reach : N → nat (* start (inclusive) *) → nat (* length *) → N → nat → nat → bool;
 }.
 
-Arguments tok {_} {_}.
+Arguments term {_} {_}.
 Arguments line {_} {_}.
 Arguments col {_} {_}.
 Arguments can_derive {_} {_}.
@@ -21,8 +21,16 @@ Arguments can_reach {_} {_}.
 Fixpoint decode {Σ N : Type} (m : model Σ N) (x δ : nat) : sentence Σ :=
   match δ with
   | 0 => []
-  | S n => tok m x @ (line m x, col m x) :: decode m (S x) n
+  | S n => term m x @ (line m x, col m x) :: decode m (S x) n
   end.
+
+Lemma decode_length {Σ N : Type} (m : model Σ N) x δ :
+  length (decode m x δ) = δ.
+Proof.
+  generalize dependent x.
+  induction δ => x //=.
+  naive_solver.
+Qed.
 
 Lemma decode_merge {Σ N : Type} (m : model Σ N) x δ δ' :
   decode m x δ ++ decode m (x + δ) δ' = decode m x (δ + δ').
@@ -40,7 +48,7 @@ Qed.
 Definition derive_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (k : nat) : Prop :=
   ∀ x δ A, x + δ ≤ k →
     can_derive m A x δ →
-    (δ = 1 ∧ ∃ a, A ↦ atom a ∈ G ∧ tok m x = a) ∨
+    (δ = 1 ∧ ∃ a, A ↦ atom a ∈ G ∧ term m x = a) ∨
     (∃ B φ, A ↦ unary B φ ∈ G ∧ can_derive m B x δ ∧ φ (decode m x δ)) ∨
     (∃ B E φ, A ↦ binary B E φ ∈ G ∧ nullable G E ∧ can_derive m B x δ) ∨
     (∃ E B φ, A ↦ binary E B φ ∈ G ∧ nullable G E ∧ can_derive m B x δ) ∨
@@ -96,7 +104,7 @@ Definition reachable_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) 
   ∀ A x δ H xH δH, x + δ ≤ k → xH + δH ≤ k →
     can_reach m A x δ H xH δH →
     (A = H ∧ xH = x ∧ δH = δ) ∨
-    (∃ B φ, A ↦ unary B φ ∈ G ∧ can_reach m B x δ H xH δH = true ∧ φ (decode m x δ)) ∨
+    (∃ B φ, A ↦ unary B φ ∈ G ∧ can_reach m B x δ H xH δH ∧ φ (decode m x δ)) ∨
     (∃ Bl Br φ δ', 0 < δ' < δ ∧ A ↦ binary Bl Br φ ∈ G ∧ can_reach m Bl x δ' H xH δH ∧
       can_derive m Br (x + δ') (δ - δ') ∧ φ (decode m x δ') (decode m (x + δ') (δ - δ'))) ∨
     (∃ Bl Br φ δ', 0 < δ' < δ ∧ A ↦ binary Bl Br φ ∈ G ∧ can_reach m Br (x + δ') (δ - δ') H xH δH ∧
@@ -138,115 +146,79 @@ Proof.
     * eapply derive_encoding_sound; eauto. lia.
 Qed.
 
-(* encoding ambiguous derivation *)
+(* encoding multiple derivation *)
 
-(*
-Inductive ψ_formula (Σ N : Type) : Type :=
-  | ψ_atom : Σ → ψ_formula Σ N
-  | ψ_unary : N → unary_predicate Σ → ψ_formula Σ N
-  | ψ_binary_null_l : N → N → binary_predicate Σ → ψ_formula Σ N
-  | ψ_binary_null_r : N → N → binary_predicate Σ → ψ_formula Σ N
-  | ψ_binary : N → N → binary_predicate Σ → ψ_formula Σ N
-  .
+Definition binary_can_derive {Σ N : Type} (m : model Σ N) (A B : N) φ (x δ δ' : nat) : Prop :=
+  can_derive m A x δ' ∧ can_derive m B (x + δ') (δ - δ') ∧
+    φ (decode m x δ') (decode m (x + δ') (δ - δ')).
 
-Arguments ψ_atom {_} {_}.
-Arguments ψ_unary {_} {_}.
-Arguments ψ_binary_null_l {_} {_}.
-Arguments ψ_binary_null_r {_} {_}.
-Arguments ψ_binary {_} {_}.
+Lemma binary_can_derive_witness {Σ N} (G : grammar Σ N) m A Bl Br φ x δ δ' k :
+  acyclic G →
+  derive_encoding G m k →
+  x + δ ≤ k →
+  δ' ≤ δ →
+  A ↦ binary Bl Br φ ∈ G →
+  binary_can_derive m Bl Br φ x δ δ' →
+  ∃ t1 t2, root t1 = Bl ∧ root t2 = Br ∧ word t1 = decode m x δ' ∧
+    (binary_tree A t1 t2) ▷ A ={G}=> decode m x δ.
+Proof.
+  intros HG ? ? ? ? [Hdl [Hdr ?]].
+  eapply derive_encoding_sound in Hdl as [t1 [? [? ?]]]; [eauto..|lia].
+  eapply derive_encoding_sound in Hdr as [t2 [? [? ?]]]; [eauto..|lia].
+  exists t1, t2. repeat split => //.
+  have ? : decode m x δ' ++ decode m (x + δ') (δ - δ') = decode m x δ.
+  { rewrite decode_merge. by have -> : δ' + (δ - δ') = δ by lia. }
+  repeat split. simpl in *. congruence.
+  eapply valid_binary_tree; eauto. naive_solver. congruence.
+Qed.
 
-Definition ψ_sat {Σ N : Type} (ψ : ψ_formula Σ N) (m : model Σ N) (δ : nat) : Prop :=
-  match ψ with
-  | ψ_atom a => δ = 0 ∧ tok m 0 = a
-  | ψ_unary A φ => can_derive m A 0 δ = true ∧ φ (decode m 0 δ)
-  | ψ_binary_null_l _ A _ => can_derive m A 0 δ = true
-  | ψ_binary_null_r A _ _ => can_derive m A 0 δ = true
-  | ψ_binary B1 B2 φ => ∃ δ', δ' < δ ∧
-    can_derive m B1 0 δ' = true ∧
-    can_derive m B2 (δ' + 1) (δ - δ' - 1) = true ∧
-    φ (decode m 0 δ') (decode m (δ' + 1) (δ - δ' - 1))
+Definition clause_can_derive {Σ N : Type} (m : model Σ N) (α : clause Σ N) (x δ : nat) :=
+  match α with
+  | ε => δ = 0
+  | atom a => δ = 1 ∧ term m x = a
+  | unary A φ => can_derive m A x δ ∧ φ (decode m x δ)
+  | binary A B φ => ∃ δ', δ' ≤ δ ∧ binary_can_derive m A B φ x δ δ'
   end.
 
-Definition ψ_intro {Σ N : Type} (G : grammar Σ N) (A : N) : list (ψ_formula Σ N) :=
-  flat_map (λ α,
-    match α with
-    | ε => []
-    | atom a => [ψ_atom a]
-    | unary A φ => [ψ_unary A φ]
-    | binary A B φ =>
-      (if nullable G A then [ψ_binary_null_l A B φ] else []) ++
-      (if nullable G B then [ψ_binary_null_r A B φ] else []) ++
-      [ψ_binary A B φ]
-    end) (P G A).
-
-Lemma elem_of_ψ_intro {Σ N : Type} (ψ : ψ_formula Σ N) G A :
-  ψ ∈ ψ_intro G A →
-  match ψ with
-  | ψ_atom a => G ⊢ A ↦ atom a
-  | ψ_unary B φ => G ⊢ A ↦ unary B φ
-  | ψ_binary_null_l B C φ => nullable G B = true ∧ G ⊢ A ↦ binary B C φ
-  | ψ_binary_null_r B C φ => nullable G C = true ∧ G ⊢ A ↦ binary B C φ
-  | ψ_binary B C φ => G ⊢ A ↦ binary B C φ
-  end.
-Admitted.
-
-Definition amb_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (k : nat) : Prop :=
-  membership_formula G m k ∧ ∃ δ A, δ < k ∧ can_derive m A 0 δ = true ∧
-    let Ψ := ψ_intro G A in ∃ ψ_1 ψ_2, ψ_1 ≠ ψ_2 ∧
-      ψ_1 ∈ Ψ ∧ ψ_2 ∈ Ψ ∧ ψ_sat ψ_1 m δ ∧ ψ_sat ψ_2 m δ.
-
-Lemma ψ_witness {Σ N : Type} (G : grammar Σ N) `{!Acyclic G} (m : model Σ N) k δ A ψ :
-  membership_formula G m k →
-  0 < k →
-  δ < k →
-  can_derive m A 0 δ = true →
-  ψ ∈ ψ_intro G A →
-  ψ_sat ψ m δ →
-  let w := decode m 0 δ in
-  match ψ with
-  | ψ_atom a => ∃ tk, w = [tk] ∧ (tok_tree A tk) ▷ A ={G}=> w
-  | ψ_unary B φ => ∃ t, (unary_tree A t) ▷ A ={G}=> w
-  | ψ_binary_null_l B C φ => ∃ tε t, (binary_tree A tε t) ▷ A ={G}=> w
-  | ψ_binary_null_r B C φ => ∃ t tε, (binary_tree A t tε) ▷ A ={G}=> w
-  | ψ_binary B C φ => ∃ t1 t2, (binary_tree A t1 t2) ▷ A ={G}=> w
+Lemma clause_can_derive_witness {Σ N} (G : grammar Σ N) m A α x δ k :
+  acyclic G →
+  derive_encoding G m k →
+  x + δ ≤ k →
+  A ↦ α ∈ G →
+  clause_can_derive m α x δ →
+  match α with
+  | ε => δ = 0 ∧ ε_tree A ▷ A ={G}=> decode m x δ
+  | atom a => δ = 1 ∧ term m x = a ∧ (token_tree A (a @ (line m x, col m x))) ▷ A ={G}=> decode m x δ
+  | unary B φ => ∃ t, root t = B ∧ (unary_tree A t) ▷ A ={G}=> decode m x δ
+  | binary Bl Br φ => ∃ t1 t2, root t1 = Bl ∧ root t2 = Br ∧ 
+    (binary_tree A t1 t2) ▷ A ={G}=> decode m x δ
   end.
 Proof.
-  intros H ? ? HA Hin Hsat.
-  apply elem_of_ψ_intro in Hin.
-  assert (He : ∀ x δ, x + δ < k → ∀ A, can_derive m A x δ = true → G ⊨ A ⇒ decode m x δ).
-  { intros ? ?. eapply encode_sound; eauto. }
-  destruct ψ as [b | B φ | B C φ | B C φ | B C φ]; simpl in Hsat.
-  - destruct Hsat as [-> ?].
-    exists (tok m 0 @ (line m 0, col m 0)).
-    split; first done.
-    apply tok_tree_witness. congruence.
-  - destruct Hsat as [HB Hφ].
-    destruct (He 0 δ ltac:(lia) _ HB) as [t Ht].
-    exists t.
-    eapply unary_tree_witness; eauto.
-  - destruct Hin as [HB ?].
-    destruct (nullable_spec _ _ HB) as [tε Htε].
-    rename Hsat into HC.
-    destruct (He 0 δ ltac:(lia) _ HC) as [t Ht].
-    exists tε, t. rewrite <- app_nil_l.
-    by eapply binary_tree_witness; eauto.
-  - rename Hsat into HB.
-    destruct (He 0 δ ltac:(lia) _ HB) as [t Ht].
-    destruct Hin as [HC ?].
-    destruct (nullable_spec _ _ HC) as [tε Htε].
-    exists t, tε. rewrite <- app_nil_r.
-    by eapply binary_tree_witness; eauto.
-  - destruct Hsat as [δ' [? [HB [HC ?]]]].
-    destruct (He 0 δ' ltac:(lia) _ HB) as [t1 Ht1].
-    destruct (He (δ' + 1) (δ - δ' - 1) ltac:(lia) _ HC) as [t2 Ht2].
-    exists t1, t2.
-    erewrite <- decode_merge.
-    + eapply binary_tree_witness; eauto.
-    + done.
+  intros HG ? ? ? Hd.
+  destruct α; simpl in Hd.
+  - split; first done. repeat split. naive_solver.
+    by apply valid_ε_tree.
+  - destruct Hd as [? ?].
+    do 2 (split; first done). repeat split. naive_solver.
+    by apply valid_token_tree.
+  - destruct Hd as [Hd ?].
+    eapply derive_encoding_sound in Hd as [t [? [? ?]]]; eauto.
+    exists t. split; first done. repeat split => //.
+    eapply valid_unary_tree; eauto. naive_solver. congruence.
+  - destruct Hd as [δ' [? Hb]].
+    eapply binary_can_derive_witness in Hb; eauto.
+    naive_solver.
 Qed.
+
+Definition multi_derive_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (H : N) (x δ : nat) : Prop :=
+  (∃ α β, H ↦ α ∈ G ∧ H ↦ β ∈ G ∧ α ≠ β ∧
+    clause_can_derive m α x δ ∧ clause_can_derive m β x δ) ∨
+  (∃ A B φ δ₁ δ₂, H ↦ binary A B φ ∈ G ∧ δ₁ ≤ δ ∧ δ₂ ≤ δ ∧ δ₁ ≠ δ₂ ∧
+    binary_can_derive m A B φ x δ δ₁ ∧ binary_can_derive m A B φ x δ δ₂).
 
 Ltac split_exist_and :=
   repeat match goal with
+  | [ H : _ ∧ _ |- _ ] => destruct H as [? ?]
   | [ H : ∃ _, _ ∧ _ ∧ _ |- _ ] => destruct H as [? [? [? ?]]]
   | [ H : ∃ _, _ ∧ _ |- _ ] => destruct H as [? [? ?]]
   | [ H : ∃ _, _ |- _ ] => destruct H as [? ?]
@@ -255,32 +227,45 @@ Ltac split_exist_and :=
   | [ H : ∃ _ _, _ |- _ ] => destruct H as [? [? ?]]
   end.
 
-Ltac exist_tree :=
-  repeat match goal with
-  | [ H : ?t ▷ ?A ={?G}=> ?w |- ∃ t1, t1 ▷ ?A ={?G}=> ?w ∧ _ ] =>
-    exists t; split; [exact H|]; clear H
-  end.
-
-Lemma amb_encoding_sound {Σ N : Type} G `{!Acyclic G} (m : model Σ N) k :
-  0 < k → amb_encoding G m k → ambiguous G.
-Proof.
-  (* intros Hgt [Hm [δ [A [Hk [HA [ψ1 [ψ2 [Hne [Hin1 [Hin2 [Hψ1 Hψ2]]]]]]]]]]].
-  exists A, (decode m 0 δ).
-  pose (ψ_witness _ _ _ _ _ _ Hm Hgt Hk HA Hin1 Hψ1) as H1.
-  pose (ψ_witness _ _ _ _ _ _ Hm Hgt Hk HA Hin2 Hψ2) as H2.
-  destruct ψ1; destruct ψ2; simpl in H1; simpl in H2; split_exist_and; exist_tree.
-  all: simpl; try done. *)
-Admitted.
-*)
-
-Definition multi_derive_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (H : N) (x δ : nat) : Prop.
-Admitted.
-
-Lemma multi_derive_encoding_sound {Σ N} (G : grammar Σ N) m H x δ :
+Lemma multi_derive_encoding_sound {Σ N} (G : grammar Σ N) m k H x δ :
+  acyclic G →
+  derive_encoding G m k →
+  x + δ ≤ k →
   multi_derive_encoding G m H x δ →
   ∃ t1 t2, t1 ▷ H ={G}=> decode m x δ ∧ t2 ▷ H ={G}=> decode m x δ ∧
     ¬ similar t1 t2.
-Admitted.
+Proof.
+  intros HG Hd Hk Hf.
+  destruct Hf as [Hf | Hf].
+  - destruct Hf as [α [β [? [? [Hne [Hα Hβ]]]]]].
+    eapply clause_can_derive_witness in Hα; eauto.
+    eapply clause_can_derive_witness in Hβ; eauto.
+    destruct α; destruct β.
+    all: split_exist_and.
+    all: try congruence.
+    all: eexists; eexists.
+    all: repeat match goal with
+    | [ H : ?t ▷ ?A ={?G}=> ?w |- _ ▷ ?A ={?G}=> ?w ∧ _ ] =>
+    split; [by exact H|]; clear H
+    end.
+    all: try done.
+    + simpl in *; subst. intros Heq. rewrite Heq in H1. apply Hne.
+      rewrite Heq. f_equal.
+      eapply unary_predicate_unique; eauto.
+    + simpl in *; subst. intros [Heq1 [Heq2 ?]].
+      rewrite Heq1 Heq2 in H1. apply Hne.
+      rewrite Heq1 Heq2. f_equal.
+      eapply binary_predicate_unique; eauto.
+  - destruct Hf as [A [B [φ [δ₁ [δ₂ [? [? [? [? [H1 H2]]]]]]]]]].
+    eapply binary_can_derive_witness in H1 as [t1l [t1r [_ [_ [Hw1 Ht1]]]]]; eauto.
+    eapply binary_can_derive_witness in H2 as [t2l [t2r [_ [_ [Hw2 Ht2]]]]]; eauto.
+    do 2 eexists. split; first by apply Ht1. split; first by apply Ht2.
+    have ? : word t1l ≠ word t2l.
+    { rewrite Hw1 Hw2. intros ?.
+      have : length (decode m x δ₁) = length (decode m x δ₂) by congruence.
+      by rewrite !decode_length. }
+    naive_solver.
+Qed.
 
 (* Main theorem *)
 
@@ -289,13 +274,22 @@ Definition amb_encoding {Σ N : Type} (G : grammar Σ N) (m : model Σ N) (A : N
     can_reach m A 0 k H x δ ∧ multi_derive_encoding G m H x δ.
 
 Theorem amb_encoding_sound {Σ N} `{EqDecision N} `{EqDecision (token Σ)}
-  (G : grammar Σ N) m A k :
+  (G : grammar Σ N) A k :
   acyclic G →
-  amb_encoding G m A k → derive_amb G A (decode m 0 k).
+  (∃ m, amb_encoding G m A k) → 
+  ∃ w, length w = k ∧ derive_amb G A w.
 Proof.
-  intros HG [? [? [H [x [δ [? [? ?]]]]]]].
+  intros HG [m [? [? [H [x [δ [? [? ?]]]]]]]].
+  exists (decode m 0 k). split; first by rewrite decode_length.
   apply derive_amb_iff_local_amb.
   exists H, (decode m x δ).
   split. eapply reachable_encoding_sound; eauto.
-  by apply multi_derive_encoding_sound.
+  eapply multi_derive_encoding_sound; eauto.
 Qed.
+
+(* TODO *)
+Definition amb_encoding_complete {Σ N} `{EqDecision N} `{EqDecision (token Σ)}
+  (G : grammar Σ N) A k :=
+  acyclic G →
+  (∃ w, length w = k ∧ derive_amb G A w) →
+  ∃ m, amb_encoding G m A k.

@@ -82,6 +82,18 @@ Global Instance production_elem_of_grammar Σ N : ElemOf (production Σ N) (gram
 
 (* So that one can use notation "A ↦ α ∈ G" *)
 
+Lemma unary_predicate_unique {Σ N} (G : grammar Σ N) A B φ1 φ2 :
+  A ↦ unary B φ1 ∈ G →
+  A ↦ unary B φ2 ∈ G →
+  φ1 = φ2.
+Proof. congruence. Qed.
+
+Lemma binary_predicate_unique {Σ N} (G : grammar Σ N) A Bl Br φ1 φ2 :
+  A ↦ binary Bl Br φ1 ∈ G →
+  A ↦ binary Bl Br φ2 ∈ G →
+  φ1 = φ2.
+Proof. congruence. Qed.
+
 (* interfaces for a parse tree *)
 
 Class ParseTree (Σ N : Type) (tree : Type → Type → Type) := {
@@ -272,70 +284,6 @@ Admitted.
 Fact nullable_spec {Σ N : Type} (G : grammar Σ N) A :
   nullable G A → G ⊨ A ⇒ [].
 Admitted.
-
-(* Lemma binary_nullable_l {Σ N : Type} (G : grammar Σ N) A B φ E w :
-  G ⊢ A ↦ binary E B φ →
-  nullable G E = true →
-  G ⊨ B ⇒ w →
-  G ⊨ A ⇒ w.
-Proof.
-  intros. rewrite <- app_nil_l.
-  eapply derive_binary; eauto; last naive_solver.
-  by apply nullable_spec.
-Qed.
-
-Lemma binary_nullable_r {Σ N : Type} (G : grammar Σ N) A B φ E w :
-  G ⊢ A ↦ binary B E φ →
-  nullable G E = true →
-  G ⊨ B ⇒ w →
-  G ⊨ A ⇒ w.
-Proof.
-  intros. rewrite <- app_nil_r.
-  eapply derive_binary; eauto; last naive_solver.
-  by apply nullable_spec.
-Qed. *)
-
-(* Lemma nonterm_derive {Σ N : Type} (G : grammar Σ N) A w :
-  G ⊨ A ⇒ w → G ⊨ nonterm A ⇒ w.
-Proof.
-  intros H.
-  inversion H.
-  by constructor.
-Qed.
-
-Lemma unary_derives_from_nonterm {Σ N : Type} (G : grammar Σ N) (A : N) w (φ : unary_predicate Σ) :
-  G ⊨ A ⇒ w →
-  φ w →
-  G ⊨ unary A φ ⇒ w.
-Proof.
-  intros HA Hφ.
-  inversion HA.
-  by constructor.
-Qed.
-
-Lemma binary_null_l_derives_from_nonterm {Σ N : Type} (G : grammar Σ N) E A w (φ : binary_predicate Σ) :
-  nullable G E = true →
-  G ⊨ A ⇒ w →
-  G ⊨ binary E A φ ⇒ w.
-Proof.
-  intros HE HA.
-  rewrite <- app_nil_l.
-  constructor; last done.
-  all: try apply nullable_spec in HE.
-  all: by apply nonterm_derive.
-Qed.
-
-Lemma binary_null_r_derives_from_nonterm {Σ N : Type} (G : grammar Σ N) E A w (φ : binary_predicate Σ) :
-  nullable G E = true →
-  G ⊨ A ⇒ w →
-  G ⊨ binary A E φ ⇒ w.
-Proof.
-  intros HE HA.
-  rewrite <- app_nil_r.
-  constructor; last done.
-  all: try apply nullable_spec in HE.
-  all: by apply nonterm_derive.
-Qed. *)
 
 (* standard notion of ambiguity *)
 
