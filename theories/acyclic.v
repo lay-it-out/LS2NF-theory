@@ -121,6 +121,12 @@ Proof.
     eapply IHt2; by repeat split.
 Qed.
 
+(* TODO: 
+1. reachable G A w C w' ↔ reachable (deloop G) A w C w'
+2. G ⊨ C ⇒ w' ↔ deloop G ⊨ C ⇒ w' (i.e. language eq)
+3. by 2 and the correctness of nullable: nullable G E ↔ nullable (deloop G) E
+*)
+
 Definition inf_amb_cond {Σ N : Type} `{EqDecision N} (G : grammar Σ N) (A : N) (w : sentence Σ) : Prop :=
   ∃ C w', reachable G A w C w' ∧ G ⊨ C ⇒ w' ∧
     ((∃ φ, C ↦ unary C φ ∈ G ∧ φ w') ∨
