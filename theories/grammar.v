@@ -1,294 +1,340 @@
 From stdpp Require Import relations list.
 From Coq Require Import ssreflect.
 
-(* sentence *)
+Section grammar.
 
-Record token (Σ : Type) := {
-  letter : Σ;
-  pos : nat (* line number *) * nat (* column number *);
-}.
+  (* token, sentence *)
+
+  Variable Σ : Type.
+  Context `{EqDecision Σ}.
+
+  Record token := {
+    letter : Σ;
+    pos : nat (* line number *) * nat (* column number *);
+  }.
+
+  Arguments letter {_}.
+  Arguments pos {_}.
+
+  Declare Scope grammar_scope.
+  Local Open Scope grammar_scope.
+
+  Notation "a @ p" := {|
+    letter := a;
+    pos := p;
+  |} (at level 40).
+
+  Definition sentence : Type := list token.
+
+  (* nonterminals *)
+
+  Variable N : Type.
+  Context `{EqDecision N}.
+
+  (* layout-free clauses *)
+
+  Inductive lf_clause : Type :=
+    | lf_ε
+    | lf_atom (a : Σ)
+    | lf_unary (A : N)
+    | lf_binary (Al Ar : N)
+    .
+
+  Definition check_lf_clause_eq α β : bool :=
+    match α, β with
+    | lf_ε, lf_ε => true
+    | lf_atom a, lf_atom b => bool_decide (a = b)
+    | lf_unary A, lf_unary A' => bool_decide (A = A')
+    | lf_binary Al Ar, lf_binary Al' Ar' =>
+      bool_decide (Al = Al') && bool_decide (Ar = Ar')
+    | _, _ => false
+    end.
+
+  Lemma check_lf_clause_eq_spec α β :
+    check_lf_clause_eq α β = true ↔ α = β.
+  Proof.
+    destruct α; destruct β => //=.
+    all: try rewrite !andb_true_iff.
+    all: rewrite !bool_decide_eq_true.
+    all: naive_solver.
+  Qed.
+
+  Global Instance lf_clause_eq_dec : EqDecision lf_clause.
+  Proof.
+    intros α β.
+    have ? := check_lf_clause_eq_spec α β.
+    destruct (check_lf_clause_eq α β); [left | right]; naive_solver.
+  Qed.
+
+  (* layout predicates *)
+
+  Definition unary_predicate : Type :=
+    {p : sentence → bool & p [] = true}.
+  Definition apply₁ (φ : unary_predicate) := projT1 φ.
+
+  Definition binary_predicate : Type :=
+    {p : sentence → sentence → bool & ∀ w1 w2, w1 = [] ∨ w2 = [] → p w1 w2 = true}.
+  Definition apply₂ (φ : binary_predicate) := projT1 φ.
+
+  (* grammar *)
+
+  Record grammar := {
+    (* start symbol *)
+    start : N;
+    (* productions *)
+    lf_clauses : N → list lf_clause;
+    lf_clauses_no_dup : ∀ A, NoDup (lf_clauses A);
+    unary_clause_predicate : N → N → unary_predicate;
+    binary_clause_predicate : N → N → N → binary_predicate;
+  }.
+
+  Implicit Type G : grammar.
+
+  (* clauses and productions *)
+
+  Inductive clause : Type :=
+    | ε : clause
+    | atom : Σ → clause
+    | unary : N → unary_predicate → clause
+    | binary : N → N → binary_predicate → clause
+    .
+
+  Definition clauses G A : list clause :=
+    (λ α, match α with
+    | lf_ε => ε
+    | lf_atom a => atom a
+    | lf_unary B => unary B (unary_clause_predicate G A B)
+    | lf_binary Bl Br => binary Bl Br (binary_clause_predicate G A Bl Br)
+    end) <$> lf_clauses G A.
+
+  Inductive production : Type :=
+    mk_production : N → clause → production.
+
+  Notation "A ↦ α" := (mk_production A α) (at level 40).
+
+  Global Instance production_elem_of_grammar : ElemOf production grammar := λ p G,
+    match p with
+    | mk_production A α => α ∈ clauses G A
+    end.
+
+  (* So that one can use notation "A ↦ α ∈ G" *)
+
+  (* interfaces for a parse tree *)
+
+  Class ParseTree (tree : Type → Type → Type) := {
+    root : tree Σ N → N;
+    word : tree Σ N → sentence;
+    valid : grammar → tree Σ N → Prop;
+    witness G t A w := root t = A ∧ word t = w ∧ valid G t;
+  }.
+
+  (* parsing *)
+
+  Inductive tree : Type :=
+    | ε_tree : N → tree
+    | token_tree : N → token → tree
+    | unary_tree : N → tree → tree
+    | binary_tree : N → tree → tree → tree
+    .
+
+  Definition tree_root t : N :=
+    match t with
+    | ε_tree R => R
+    | token_tree R _ => R
+    | unary_tree R _ => R
+    | binary_tree R _ _ => R
+    end.
+
+  Fixpoint tree_word t : sentence :=
+    match t with
+    | ε_tree _ => []
+    | token_tree _ tk => [tk]
+    | unary_tree _ t' => tree_word t'
+    | binary_tree _ t1 t2 => tree_word t1 ++ tree_word t2
+    end.
+
+  Inductive tree_valid G : tree → Prop :=
+    | valid_ε A :
+      A ↦ ε ∈ G →
+      tree_valid G (ε_tree A)
+    | valid_token A a p :
+      A ↦ atom a ∈ G →
+      tree_valid G (token_tree A (a @ p))
+    | valid_unary A t' φ :
+      A ↦ unary (tree_root t') φ ∈ G →
+      tree_valid G t' →
+      apply₁ φ (tree_word t') = true →
+      tree_valid G (unary_tree A t')
+    | valid_binary A t1 t2 φ :
+      A ↦ binary (tree_root t1) (tree_root t2) φ ∈ G →
+      tree_valid G t1 →
+      tree_valid G t2 →
+      apply₂ φ (tree_word t1) (tree_word t2) = true →
+      tree_valid G (binary_tree A t1 t2)
+    .
+
+  Notation "✓{ G } t" := (tree_valid G t) (at level 40, format "'✓{' G '}'  t").
+
+  Definition tree_witness G t A w :=
+    tree_root t = A ∧ tree_word t = w ∧ ✓{G} t.
+
+  Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40).
+
+  (* Fixpoint check_tree_valid G (t : tree Σ N) : bool :=
+    match t with
+    | ε_tree A => bool_decide (A ↦ ε ∈ G)
+    (* | token_tree A tk => atom_productions G A (letter tk)
+    | unary_tree A t' =>
+      match unary_productions G A (tree_root t') with
+      | Some φ => tree_valid G t' && φ (tree_word t')
+      | None => false
+      end
+    | binary_tree A t1 t2 =>
+      match binary_productions G A (tree_root t1) (tree_root t2) with
+      | Some φ => tree_valid G t1 && tree_valid G t2 && φ (tree_word t1) (tree_word t2)
+      | None => false
+      end *)
+    | _ => false
+    end. *)
+(* 
+  Global Instance ParseTree_tree : ParseTree tree := {|
+    root := tree_root;
+    word := tree_word;
+    valid := tree_valid;
+  |}. *)
+
+  (* derivation *)
+
+  Definition derive G A w : Prop :=
+    ∃ t, t ▷ A ={G}=> w.
+
+  Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
+
+  Lemma derive_ε G A :
+    A ↦ ε ∈ G →
+    G ⊨ A ⇒ [].
+  Proof.
+    intros. exists (ε_tree A).
+    repeat split. by constructor.
+  Qed.
+
+  Lemma derive_atom G A a p :
+    A ↦ atom a ∈ G →
+    G ⊨ A ⇒ [a @ p].
+  Proof.
+    intros. exists (token_tree A (a @ p)).
+    repeat split. by constructor.
+  Qed.
+
+  Lemma derive_unary G A B φ w :
+    A ↦ unary B φ ∈ G →
+    apply₁ φ w = true →
+    G ⊨ B ⇒ w →
+    G ⊨ A ⇒ w.
+  Proof.
+    intros ? ? [t [? [? ?]]]. exists (unary_tree A t).
+    repeat split => //. econstructor; naive_solver.
+  Qed.
+
+  Lemma derive_binary G A Bl Br φ w1 w2 :
+    A ↦ binary Bl Br φ ∈ G →
+    apply₂ φ w1 w2 = true →
+    G ⊨ Bl ⇒ w1 →
+    G ⊨ Br ⇒ w2 →
+    G ⊨ A ⇒ w1 ++ w2.
+  Proof.
+    intros ? ? [t1 [? [? ?]]] [t2 [? [? ?]]].
+    exists (binary_tree A t1 t2).
+    repeat split; try naive_solver.
+    econstructor; naive_solver.
+  Qed.
+
+  (* nullability *)
+
+  Definition nullable G (A : N) : bool.
+  Admitted.
+
+  Fact nullable_spec G A :
+    nullable G A = true ↔ G ⊨ A ⇒ [].
+  Admitted.
+
+  Global Instance nullable_dec G A : Decision (G ⊨ A ⇒ []).
+  Proof.
+    have ? := nullable_spec G A.
+    destruct (nullable G A); [left | right]; naive_solver.
+  Qed.
+
+
+(* reachability with layout constraints/predicates *)
+
+Inductive reachable (G : grammar) : N → sentence (* TODO: necessary? *) → N → sentence → Prop :=
+  | reachable_refl S w S' w' :
+    S = S' →
+    w = w' →
+    reachable G S w S' w'
+  | reachable_unary A B w φ H h :
+    A ↦ unary B φ ∈ G →
+    reachable G B w H h →
+    apply₁ φ w = true →
+    reachable G A w H h
+  | reachable_left A Bl w1 Br w2 φ H h :
+    A ↦ binary Bl Br φ ∈ G →
+    reachable G Bl w1 H h →
+    G ⊨ Br ⇒ w2 →
+    apply₂ φ w1 w2 = true →
+    reachable G A (w1 ++ w2) H h
+  | reachable_right A Bl w1 Br w2 φ H h :
+    A ↦ binary Bl Br φ ∈ G →
+    reachable G Br w2 H h →
+    G ⊨ Bl ⇒ w1 →
+    apply₂ φ w1 w2 = true →
+    reachable G A (w1 ++ w2) H h
+  .
+
+  (* standard notion of ambiguity *)
+
+  Definition derive_amb G A w : Prop :=
+    ∃ t1 t2, t1 ▷ A ={G}=> w ∧ t2 ▷ A ={G}=> w ∧ t1 ≠ t2.
+
+  Definition amb G :=
+    ∃ w, derive_amb G (start G) w.
+
+End grammar.
 
 Arguments letter {_}.
 Arguments pos {_}.
 
-Notation "a @ p" := {|
-  letter := a;
-  pos := p;
-|} (at level 40).
-
-Definition sentence (Σ : Type) : Type := list (token Σ).
-
-(* predicate should be decidable *)
-
-Definition unary_predicate (Σ : Type) : Type := sentence Σ → bool.
-Definition binary_predicate (Σ : Type) : Type := sentence Σ → sentence Σ → bool.
-
-(* grammar *)
-
-Record grammar (Σ N : Type) := {
-  start : N;
-  ε_productions : N → bool;
-  atom_productions : N → Σ → bool;
-  unary_productions : N → N → option (unary_predicate Σ);
-  binary_productions : N → N → N → option (binary_predicate Σ);
-  unary_predicate_axiom : ∀ φ : unary_predicate Σ, φ [];
-  binary_predicate_axiom : ∀ (φ : binary_predicate Σ) w1 w2,
-    (w1 = [] ∨ w2 = []) → φ w1 w2;
-}.
-
 Arguments start {_} {_}.
-Arguments ε_productions {_} {_}.
-Arguments atom_productions {_} {_}.
-Arguments unary_productions {_} {_}.
-Arguments binary_productions {_} {_}.
-Arguments unary_predicate_axiom {_} {_}.
-Arguments binary_predicate_axiom {_} {_}.
-
-Inductive clause (Σ N : Type) : Type :=
-  | ε : clause Σ N
-  | atom : Σ → clause Σ N
-  | unary : N → unary_predicate Σ → clause Σ N
-  | binary : N → N → binary_predicate Σ → clause Σ N
-  .
 
 Arguments ε {_} {_}.
 Arguments atom {_} {_}.
 Arguments unary {_} {_}.
 Arguments binary {_} {_}.
 
-(* NOTE
-
-One can also define the production set of a grammar as a function from N to list (clause Σ N).
-
-But this definition has two disadvantages:
-1. To show that (A ↦ α ∈ G) is decidable, we need to show that predicates are eq decidable, which is not so obvious (though in practice the predicates are taken from a predefined set)
-2. This definition fails to reject productions with conflicting predicates, e.g. A ↦ B offside and A ↦ B same_line.
-*)
-
-Inductive production (Σ N : Type) : Type :=
-  mk_production : N → clause Σ N → production Σ N.
-
+Arguments clauses {_} {_}.
 Arguments mk_production {_} {_}.
+
+Arguments apply₁ {_}.
+Arguments apply₂ {_}.
+
+Arguments tree_root {_} {_}.
+Arguments tree_word {_} {_}.
+Arguments tree_valid {_} {_}.
+Arguments derive {_} {_}.
+Arguments nullable {_} {_} {_} {_}.
+Arguments tree_witness {_} {_}.
+
+Arguments reachable {_} {_}.
+
+Notation "a @ p" := {|
+  letter := a;
+  pos := p;
+|} (at level 40).
 
 Notation "A ↦ α" := (mk_production A α) (at level 40).
 
-Global Instance production_elem_of_grammar Σ N : ElemOf (production Σ N) (grammar Σ N) := λ p G,
-  match p with
-  | mk_production A ε => ε_productions G A
-  | mk_production A (atom a) => atom_productions G A a
-  | mk_production A (unary B φ) => unary_productions G A B = Some φ
-  | mk_production A (binary Bl Br φ) => binary_productions G A Bl Br = Some φ
-  end.
-
-(* So that one can use notation "A ↦ α ∈ G" *)
-
-Lemma unary_predicate_unique {Σ N} (G : grammar Σ N) A B φ1 φ2 :
-  A ↦ unary B φ1 ∈ G →
-  A ↦ unary B φ2 ∈ G →
-  φ1 = φ2.
-Proof. congruence. Qed.
-
-Lemma binary_predicate_unique {Σ N} (G : grammar Σ N) A Bl Br φ1 φ2 :
-  A ↦ binary Bl Br φ1 ∈ G →
-  A ↦ binary Bl Br φ2 ∈ G →
-  φ1 = φ2.
-Proof. congruence. Qed.
-
-(* interfaces for a parse tree *)
-
-Class ParseTree (Σ N : Type) (tree : Type → Type → Type) := {
-  root : tree Σ N → N;
-  word : tree Σ N → sentence Σ;
-  (* validity is decidable *)
-  valid : grammar Σ N → tree Σ N → bool;
-  witness G t A w := root t = A ∧ word t = w ∧ valid G t;
-}.
-
-Notation "✓{ G } t" := (valid G t) (at level 40, format "'✓{' G '}'  t").
-
-Notation "t ▷ A ={ G }=> w" := (witness G t A w) (at level 40).
-
-(* parsing *)
-
-Inductive tree (Σ N : Type) : Type :=
-  | ε_tree : N → tree Σ N
-  | token_tree : N → token Σ → tree Σ N
-  | unary_tree : N → tree Σ N → tree Σ N
-  | binary_tree : N → tree Σ N → tree Σ N → tree Σ N
-  .
-
-Arguments ε_tree {_} {_}.
-Arguments token_tree {_} {_}.
-Arguments unary_tree {_} {_}.
-Arguments binary_tree {_} {_}.
-
-Definition tree_root {Σ N : Type} (t : tree Σ N) : N :=
-  match t with
-  | ε_tree R => R
-  | token_tree R _ => R
-  | unary_tree R _ => R
-  | binary_tree R _ _ => R
-  end.
-
-Fixpoint tree_word {Σ N : Type} (t : tree Σ N) : sentence Σ :=
-  match t with
-  | ε_tree _ => []
-  | token_tree _ tk => [tk]
-  | unary_tree _ t' => tree_word t'
-  | binary_tree _ t1 t2 => tree_word t1 ++ tree_word t2
-  end.
-
-Fixpoint tree_valid {Σ N : Type} (G : grammar Σ N) (t : tree Σ N) : bool :=
-  match t with
-  | ε_tree A => ε_productions G A
-  | token_tree A tk => atom_productions G A (letter tk)
-  | unary_tree A t' =>
-    match unary_productions G A (tree_root t') with
-    | Some φ => tree_valid G t' && φ (tree_word t')
-    | None => false
-    end
-  | binary_tree A t1 t2 =>
-    match binary_productions G A (tree_root t1) (tree_root t2) with
-    | Some φ => tree_valid G t1 && tree_valid G t2 && φ (tree_word t1) (tree_word t2)
-    | None => false
-    end
-  end.
-
-Global Instance ParseTree_tree Σ N : ParseTree Σ N tree := {|
-  root := tree_root;
-  word := tree_word;
-  valid := tree_valid;
-|}.
-
-Lemma Is_true_andb (b1 b2 : bool) :
-  b1 ∧ b2 → b1 && b2.
-Proof.
-  naive_solver.
-Qed.
-
-Lemma valid_ε_tree {Σ N : Type} (G : grammar Σ N) A :
-  A ↦ ε ∈ G →
-  ✓{G} ε_tree A.
-Proof.
-  naive_solver.
-Qed.
-
-Lemma valid_token_tree {Σ N : Type} (G : grammar Σ N) A tk :
-  A ↦ atom (letter tk) ∈ G →
-  ✓{G} token_tree A tk.
-Proof.
-  naive_solver.
-Qed.
-
-Lemma valid_unary_tree {Σ N : Type} (G : grammar Σ N) A φ t :
-  A ↦ unary (root t) φ ∈ G →
-  φ (word t) →
-  ✓{G} t →
-  ✓{G} unary_tree A t.
-Proof.
-  move => HA ? ? /=.
-  rewrite HA. naive_solver.
-Qed.
-
-Lemma valid_binary_tree {Σ N : Type} (G : grammar Σ N) A φ t1 t2 :
-  A ↦ binary (root t1) (root t2) φ ∈ G →
-  φ (word t1) (word t2) →
-  ✓{G} t1 →
-  ✓{G} t2 →
-  ✓{G} binary_tree A t1 t2.
-Proof.
-  move => HA ? ? ? /=.
-  rewrite HA. naive_solver.
-Qed.
-
-Lemma valid_ε_tree_inv {Σ N : Type} (G : grammar Σ N) A :
-  ✓{G} ε_tree A →
-  A ↦ ε ∈ G.
-Proof.
-  naive_solver.
-Qed.
-
-Lemma valid_token_tree_inv {Σ N : Type} (G : grammar Σ N) A tk :
-  ✓{G} token_tree A tk →
-  A ↦ atom (letter tk) ∈ G.
-Proof.
-  naive_solver.
-Qed.
-
-Lemma valid_unary_tree_inv {Σ N : Type} (G : grammar Σ N) A t :
-  ✓{G} unary_tree A t →
-  ∃ φ, A ↦ unary (root t) φ ∈ G ∧ φ (word t) ∧ ✓{G} t.
-Proof.
-  simpl. case_match; naive_solver.
-Qed.
-
-Lemma valid_binary_tree_inv {Σ N : Type} (G : grammar Σ N) A t1 t2 :
-  ✓{G} binary_tree A t1 t2 →
-  ∃ φ, A ↦ binary (root t1) (root t2) φ ∈ G ∧ φ (word t1) (word t2) ∧
-    ✓{G} t1 ∧ ✓{G} t2.
-Proof.
-  simpl. case_match; naive_solver.
-Qed.
-
-(* derivation *)
-
-Definition derive {Σ N : Type} (G : grammar Σ N) (A : N) (w : sentence Σ) : Prop :=
-  ∃ (t : tree Σ N), witness G t A w.
+Notation "✓{ G } t" := (tree_valid G t) (at level 40, format "'✓{' G '}'  t").
 
 Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
 
-Lemma derive_ε {Σ N : Type} (G : grammar Σ N) A :
-  A ↦ ε ∈ G →
-  G ⊨ A ⇒ [].
-Proof.
-  intros. exists (ε_tree A).
-  repeat split. by apply valid_ε_tree.
-Qed.
-
-Lemma derive_atom {Σ N : Type} (G : grammar Σ N) A a p :
-  A ↦ atom a ∈ G →
-  G ⊨ A ⇒ [a @ p].
-Proof.
-  intros. exists (token_tree A (a @ p)).
-  repeat split. by apply valid_token_tree.
-Qed.
-
-Lemma derive_unary {Σ N : Type} (G : grammar Σ N) A B φ w :
-  A ↦ unary B φ ∈ G →
-  φ w →
-  G ⊨ B ⇒ w →
-  G ⊨ A ⇒ w.
-Proof.
-  intros ? ? [t [? [? ?]]]. exists (unary_tree A t).
-  repeat split => //. eapply valid_unary_tree; naive_solver.
-Qed.
-
-Lemma derive_binary {Σ N : Type} (G : grammar Σ N) A Bl Br φ w1 w2 :
-  A ↦ binary Bl Br φ ∈ G →
-  φ w1 w2 →
-  G ⊨ Bl ⇒ w1 →
-  G ⊨ Br ⇒ w2 →
-  G ⊨ A ⇒ w1 ++ w2.
-Proof.
-  intros ? ? [t1 [? [? ?]]] [t2 [? [? ?]]].
-  exists (binary_tree A t1 t2).
-  repeat split; try naive_solver.
-  eapply valid_binary_tree; naive_solver.
-Qed.
-
-(* nullability *)
-
-Definition nullable {Σ N : Type} (G : grammar Σ N) (A : N) : bool.
-Admitted.
-
-Fact nullable_spec {Σ N : Type} (G : grammar Σ N) A :
-  nullable G A → G ⊨ A ⇒ [].
-Admitted.
-
-(* standard notion of ambiguity *)
-
-Definition derive_amb {Σ N : Type} (G : grammar Σ N) (A : N) (w : sentence Σ) : Prop :=
-  ∃ t1 t2 : tree Σ N, t1 ▷ A ={G}=> w ∧ t2 ▷ A ={G}=> w ∧ t1 ≠ t2.
-
-Definition amb {Σ N : Type} (G : grammar Σ N) :=
-  ∃ w, derive_amb G (start G) w.
+Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40).
