@@ -157,7 +157,7 @@ Section sub_derive.
   .
 
   Lemma reachable_to_spec σ τ :
-    reachable_to σ τ ↔ τ →∗ σ.
+    reachable_to τ σ ↔ σ →∗ τ.
   Proof.
     split.
     - (* -> *)
@@ -165,80 +165,56 @@ Section sub_derive.
       all: econstructor; last eauto.
       all: econstructor; eauto.
     - (* <- *)
-      induction 1 as [|? ? ? Hst]; subst. constructor.
-      all: inversion Hst; subst; clear Hst.
+      apply rtc_ind_l. constructor.
+      intros [] [] Hst ? ?.
+      inversion Hst; subst; clear Hst.
       + eapply reachable_to_unary; eauto.
       + eapply reachable_to_left; eauto.
       + eapply reachable_to_right; eauto.
   Qed.
 
-  (* Inductive sub_derive_2 S u : N → sentence Σ → Prop :=
-  | sub_derive_2_refl :
-    G ⊨ S ⇒ u →
-    sub_derive_2 S u S u
-  | sub_derive_2_unary A B φ w :
+  Inductive reachable_from σ : sig → Prop :=
+  | reachable_from_refl :
+    reachable_from σ σ
+  | reachable_from_unary A B w φ :
     A ↦ unary B φ ∈ G →
-    sub_derive_2 S u A w →
+    reachable_from σ (A, w) →
     apply₁ φ w = true →
-    sub_derive_2 S u B w
-  | sub_derive_2_left A Bl Br φ wl wr :
+    reachable_from σ (B, w)
+  | reachable_from_left A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
-    sub_derive_2 S u A (wl ++ wr) →
-    G ⊨ Br ⇒ wr →
-    apply₂ φ wl wr = true →
-    sub_derive_2 S u Bl wl
-  | sub_derive_2_right A Bl Br φ wl wr :
+    reachable_from σ (A, w1 ++ w2) →
+    G ⊨ Br ⇒ w2 →
+    apply₂ φ w1 w2 = true →
+    reachable_from σ (Bl, w1)
+  | reachable_from_right A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
-    sub_derive_2 S u A (wl ++ wr) →
-    G ⊨ Bl ⇒ wl →
-    apply₂ φ wl wr = true →
-    sub_derive_2 S u Br wr
+    reachable_from σ (A, w1 ++ w2) →
+    G ⊨ Bl ⇒ w1 →
+    apply₂ φ w1 w2 = true →
+    reachable_from σ (Br, w2)
   .
 
-  Lemma sub_derive_2_spec A w B v :
-    sub_derive_2 A w B v ↔ sub_derive A w B v.
+  Lemma reachable_from_spec σ τ :
+    reachable_from σ τ ↔ σ →∗ τ.
   Proof.
     split.
     - (* -> *)
-      induction 1; subst.
-      + destruct H as [t ?].
-        exists t, t.
-        split; first done.
-        split; first done.
-        constructor.
-      + have Ht : unary_tree A0 t' ▷ A0 ={ G }=> w0.
-        { destruct Ht' as [? [? ?]].
-          repeat split. naive_solver. econstructor; naive_solver. }
-        specialize (IHsub_derive_2 _ Ht) as [t [? ?]].
-        exists t. split; first done.
-        etrans; last eauto. constructor; constructor.
-      + destruct H1 as [tr [? [? ?]]].
-        have Ht : binary_tree A0 t' tr ▷ A0 ={ G }=> (wl ++ wr).
-        { destruct Ht' as [? [? ?]].
-          repeat split. naive_solver. econstructor; naive_solver. }
-        specialize (IHsub_derive_2 _ Ht) as [t [? ?]].
-        exists t. split; first done.
-        etrans; last eauto. constructor; constructor.
-      + destruct H1 as [tl [? [? ?]]].
-        have Ht : binary_tree A0 tl t' ▷ A0 ={ G }=> (wl ++ wr).
-        { destruct Ht' as [? [? ?]].
-          repeat split. naive_solver. econstructor; naive_solver. }
-        specialize (IHsub_derive_2 _ Ht) as [t [? ?]].
-        exists t. split; first done.
-        etrans; last eauto. constructor; constructor.
+      induction 1; subst. constructor.
+      all: eapply rtc_r; first eauto.
+      all: econstructor; eauto.
     - (* <- *)
-      have [t Ht] : G ⊨ B ⇒ v. admit.
-      intros H. induction t.
-      + admit.
-      + admit.
-      + destruct Ht as [? [? Ht]].
-        inversion Ht; subst; clear Ht.
-        eapply sub_derive_2_unary
-      unfold sub_derive.
-  *)
+      apply rtc_ind_r. constructor.
+      intros [] [] ? Hst ?.
+      inversion Hst; subst; clear Hst.
+      + eapply reachable_from_unary; eauto.
+      + eapply reachable_from_left; eauto.
+      + eapply reachable_from_right; eauto.
+  Qed.
 
 End sub_derive.
 
 Arguments step {_} {_}.
 Arguments reachable {_} {_}.
 Arguments reachable_to {_} {_}.
+Arguments reachable_from {_} {_}.
