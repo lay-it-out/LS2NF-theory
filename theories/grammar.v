@@ -119,15 +119,6 @@ Section grammar.
 
   (* So that one can use notation "A ↦ α ∈ G" *)
 
-  (* interfaces for a parse tree *)
-
-  Class ParseTree (tree : Type → Type → Type) := {
-    root : tree Σ N → N;
-    word : tree Σ N → sentence;
-    valid : grammar → tree Σ N → Prop;
-    witness G t A w := root t = A ∧ word t = w ∧ valid G t;
-  }.
-
   (* parsing *)
 
   Inductive tree : Type :=
@@ -264,33 +255,6 @@ Section grammar.
     destruct (nullable G A); [left | right]; naive_solver.
   Qed.
 
-
-(* reachability with layout constraints/predicates *)
-
-Inductive reachable (G : grammar) : N → sentence (* TODO: necessary? *) → N → sentence → Prop :=
-  | reachable_refl S w S' w' :
-    S = S' →
-    w = w' →
-    reachable G S w S' w'
-  | reachable_unary A B w φ H h :
-    A ↦ unary B φ ∈ G →
-    reachable G B w H h →
-    apply₁ φ w = true →
-    reachable G A w H h
-  | reachable_left A Bl w1 Br w2 φ H h :
-    A ↦ binary Bl Br φ ∈ G →
-    reachable G Bl w1 H h →
-    G ⊨ Br ⇒ w2 →
-    apply₂ φ w1 w2 = true →
-    reachable G A (w1 ++ w2) H h
-  | reachable_right A Bl w1 Br w2 φ H h :
-    A ↦ binary Bl Br φ ∈ G →
-    reachable G Br w2 H h →
-    G ⊨ Bl ⇒ w1 →
-    apply₂ φ w1 w2 = true →
-    reachable G A (w1 ++ w2) H h
-  .
-
   (* standard notion of ambiguity *)
 
   Definition derive_amb G A w : Prop :=
@@ -317,14 +281,17 @@ Arguments mk_production {_} {_}.
 Arguments apply₁ {_}.
 Arguments apply₂ {_}.
 
+Arguments ε_tree {_} {_}.
+Arguments token_tree {_} {_}.
+Arguments unary_tree {_} {_}.
+Arguments binary_tree {_} {_}.
+
 Arguments tree_root {_} {_}.
 Arguments tree_word {_} {_}.
 Arguments tree_valid {_} {_}.
 Arguments derive {_} {_}.
 Arguments nullable {_} {_} {_} {_}.
 Arguments tree_witness {_} {_}.
-
-Arguments reachable {_} {_}.
 
 Notation "a @ p" := {|
   letter := a;

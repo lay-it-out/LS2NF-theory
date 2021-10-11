@@ -1,8 +1,7 @@
-From stdpp Require Import relations finite fin.
+From stdpp Require Import relations.
 From Coq Require Import ssreflect.
-From Coq Require Import Recdef.
 From Coq.Program Require Import Wf.
-From ambig Require Import util grammar acyclic.
+From ambig Require Import util grammar acyclic sub_derive.
 
 Section decidability.
 
@@ -214,118 +213,125 @@ Section decidability.
       by apply Heqn, check_derive_spec.
   Qed.
 
-  Program Fixpoint check_reach A w H h {measure (w, A) sig_lt} : bool :=
-    bool_decide (A = H ∧ w = h) ||
-    big_or (clauses G A) (λ p, match p with existT α Hα =>
-      match α with
-      | unary B φ => apply₁ φ w && check_reach B w H h
-      | binary Bl Br φ =>
-        when (G ⊨ Bl ⇒ []) (λ _, check_reach Br w H h) ||
-        (* TODO: h = [] ? *)
-        when (G ⊨ Br ⇒ []) (λ _, check_reach Bl w H h) ||
-        big_or (nonempty_partition w)
-          (λ wp, match wp with existT (wl, wr) Hwp =>
-            apply₂ φ wl wr &&
-            ((check_reach Bl wl H h && bool_decide (G ⊨ Br ⇒ wr))) ||
-            ((bool_decide (G ⊨ Bl ⇒ wl) && check_reach Br wr H h))
-          end)
-      | _ => false
-      end
-    end).
+  (* reachable *)
+
+  Definition partition w : list (sentence Σ * sentence Σ) :=
+    match w with
+    | [] => [([], [])]
+    | _ :: w' => ([], w) :: ((λ k, (take k w, drop k w)) <$> (nat_range (length w)))
+    end.
+
+  Lemma partition_non_increase w wl wr :
+    (wl, wr) ∈ partition w →
+    length wl ≤ length w ∧ length wr ≤ length w.
+  Proof.
+  Admitted.
+
+  Lemma partition_spec w wl wr :
+    (wl, wr) ∈ partition w ↔ w = wl ++ wr.
+  Admitted.
+
+  Program Fixpoint check_reach (σ τ : N * sentence Σ) {measure (snd σ, fst σ) sig_lt} : bool :=
+    match σ, τ with (A, w), (H, h) =>
+      bool_decide (σ = τ) ||
+        big_or (clauses G A) (λ p, match p with existT α Hα =>
+          match α with
+          | unary B φ => apply₁ φ w && check_reach (B, w) (H, h)
+          | binary Bl Br φ =>
+            big_or (partition w)
+              (λ wp, match wp with existT (wl, wr) Hwp =>
+                apply₂ φ wl wr && (
+                  when (G ⊨ Br ⇒ wr) (λ _, check_reach (Bl, wl) (H, h)) ||
+                  when (G ⊨ Bl ⇒ wl) (λ _, check_reach (Br, wr) (H, h))
+                )
+              end)
+          | _ => false
+          end
+        end)
+    end.
   Next Obligation.
-    intros. subst. right; split => //.
+    intros. subst.
+    right. split => //.
     eapply succ_unary; eauto.
   Qed.
   Next Obligation.
-    intros. subst. right; split => //.
-    eapply succ_right; eauto.
+    intros. subst. simpl in *.
+    have ? : w = wl ++ wr by apply partition_spec.
+    destruct wr; subst.
+    - right. split. by rewrite app_nil_r.
+      eapply succ_left; eauto.
+    - left. rewrite /ltof app_length cons_length /=. lia.
   Qed.
   Next Obligation.
-    intros. subst. right; split => //.
-    eapply succ_left; eauto.
+    intros. subst. simpl in *.
+    have ? : w = wl ++ wr by apply partition_spec.
+    destruct wl; subst.
+    - right. split. by rewrite app_nil_l.
+      eapply succ_right; eauto.
+    - left. rewrite /ltof app_length cons_length /=. lia.
   Qed.
-  Next Obligation.
-    intros. subst. left.
-    simpl in *.
-    edestruct nonempty_partition_decrease; eauto.
-  Qed.
-  Next Obligation.
-    intros. subst. left.
-    simpl in *.
-    edestruct nonempty_partition_decrease; eauto.
-  Qed.
-  Next Obligation.
-    naive_solver.
-  Qed.
-  Next Obligation.
-    naive_solver.
-  Qed.
+  Next Obligation. done. Qed.
+  Next Obligation. done. Qed.
   Next Obligation.
     by apply measure_wf, sig_lt_wf.
   Qed.
 
-  Lemma check_reach_equation A w H h :
-    check_reach A w H h =
-    bool_decide (A = H ∧ w = h) ||
-    big_or (clauses G A) (λ p, match p with existT α Hα =>
-      match α with
-      | unary B φ => apply₁ φ w && check_reach B w H h
-      | binary Bl Br φ =>
-        when (G ⊨ Bl ⇒ []) (λ _, check_reach Br w H h) ||
-        when (G ⊨ Br ⇒ []) (λ _, check_reach Bl w H h) ||
-        big_or (nonempty_partition w)
-          (λ wp, match wp with existT (wl, wr) Hwp =>
-            apply₂ φ wl wr &&
-            ((check_reach Bl wl H h && bool_decide (G ⊨ Br ⇒ wr)) ||
-             (bool_decide (G ⊨ Bl ⇒ wl) && check_reach Br wr H h))
-          end)
-      | _ => false
-      end
-    end).
-  Admitted.
-
-  Lemma reachable_sub_sentence A w H h :
-    reachable G A w H h → h `sublist_of` w.
+  Lemma check_reach_equation σ τ :
+    check_reach σ τ =
+    match σ, τ with (A, w), (H, h) =>
+      bool_decide (σ = τ) ||
+        big_or (clauses G A) (λ p, match p with existT α Hα =>
+          match α with
+          | unary B φ => apply₁ φ w && check_reach (B, w) (H, h)
+          | binary Bl Br φ =>
+            big_or (partition w)
+              (λ wp, match wp with existT (wl, wr) Hwp =>
+                apply₂ φ wl wr && (
+                  when (G ⊨ Br ⇒ wr) (λ _, check_reach (Bl, wl) (H, h)) ||
+                  when (G ⊨ Bl ⇒ wl) (λ _, check_reach (Br, wr) (H, h))
+                )
+              end)
+          | _ => false
+          end
+        end)
+    end.
   Admitted.
 
   Lemma check_reach_spec A w H h :
-    h ≠ [] →
-    check_reach A w H h = true ↔ reachable G A w H h.
+    check_reach (A, w) (H, h) = true ↔ reachable G (A, w) (H, h).
   Proof.
-    intros Hh.
+    rewrite -reachable_to_spec.
     split; intros He.
     - (* -> *)
       generalize dependent A.
       induction w as [w IHw] using (well_founded_induction (well_founded_ltof (sentence Σ) length)).
+      unfold ltof in IHw.
       induction A as [A IHA] using (well_founded_induction (acyclic_succ_flip_wf _ _ _ acyclic0)).
       rewrite check_reach_equation orb_true_iff bool_decide_eq_true big_or_true.
-      intros [[? ?]|Hα]. by constructor.
+      intros [->|Hα]. constructor.
       destruct Hα as [[α Hp] Hα]. case_match; subst; try done.
       + apply andb_true_iff in Hα as [? ?].
-        eapply reachable_unary; eauto.
+        eapply reachable_to_unary; eauto.
         clear IHw. apply IHA; eauto.
         eapply succ_unary; eauto.
-      + apply orb_true_iff in Hα as [Hα|Hα].
+      + apply big_or_true in Hα as [[[wl wr] Hpar] Hα].
+        apply andb_true_iff in Hα as [? Hα].
         apply orb_true_iff in Hα as [Hα|Hα].
-        * apply when_true in Hα as [Hn ?]. destruct b.
-          have -> : w = [] ++ w by rewrite app_nil_l.
-          eapply reachable_right; eauto.
-          clear IHw. apply IHA; eauto.
-          eapply succ_right; eauto.
-        * apply when_true in Hα as [Hn ?]. destruct b.
-          have -> : w = w ++ [] by rewrite app_nil_r.
-          eapply reachable_left; eauto.
-          clear IHw. apply IHA; eauto.
-          eapply succ_left; eauto.
-        * apply big_or_true in Hα as [[[wl wr] Hpar] Hα].
-          apply andb_true_iff in Hα as [? Hα].
-          apply orb_true_iff in Hα as [Hα|Hα].
-          all: apply andb_true_iff in Hα as [? ?].
-          all: edestruct nonempty_partition_decrease; eauto.
-          all: edestruct nonempty_partition_spec as [[Hw _] _]; eauto.
-          all: rewrite Hw.
-          ** eapply reachable_left; eauto. by eapply bool_decide_eq_true.
-          ** eapply reachable_right; eauto. by eapply bool_decide_eq_true.
+        all: apply when_true in Hα as [? ?].
+        all: apply partition_spec in Hpar.
+        all: rewrite Hpar.
+        * eapply reachable_to_left; eauto. destruct wr.
+          ** have Hwl : wl = w by symmetry; rewrite <-app_nil_r.
+             rewrite Hwl. rewrite Hwl in H1.
+             clear IHw. eapply IHA => //. eapply succ_left; eauto.
+          ** clear IHA. eapply IHw => //.
+             rewrite Hpar app_length cons_length. lia.
+        * eapply reachable_to_right; eauto. destruct wl.
+          ** have Hwr : wr = w by symmetry; rewrite <-app_nil_l.
+             rewrite Hwr. rewrite Hwr in H1.
+             clear IHw. eapply IHA => //. eapply succ_right; eauto.
+          ** clear IHA. eapply IHw => //.
+             rewrite Hpar app_length cons_length. lia.
     - (* <- *)
       generalize dependent A.
       generalize dependent w.
@@ -336,43 +342,26 @@ Section decidability.
       + exists (existT (unary B φ) H0).
         apply andb_true_iff. naive_solver.
       + exists (existT (binary Bl Br φ) H0).
-        have ? : w1 ≠ [].
-        { intros ->.
-          apply reachable_sub_sentence, sublist_nil_r in He.
-          contradiction. }
-        destruct (decide (w2 = [])).
-        * apply orb_true_iff. left.
-          apply orb_true_iff. right.
-          have Hn : G ⊨ Br ⇒ [] by congruence.
-          apply when_true. exists Hn.
-          rewrite e app_nil_r. naive_solver.
-        * apply orb_true_iff. right.
-          apply big_or_true. simpl in *.
-          have Hw : (w1, w2) ∈ nonempty_partition (w1 ++ w2).
-          { apply nonempty_partition_spec. naive_solver. }
-          exists (existT (w1, w2) Hw).
-          apply andb_true_iff. split => //.
-          apply orb_true_iff. left. apply andb_true_iff.
-          split; [naive_solver | by apply bool_decide_eq_true].
+        apply big_or_true.
+        have Hw : (w1, w2) ∈ partition (w1 ++ w2) by apply partition_spec; naive_solver.
+        exists (existT (w1, w2) Hw).
+        apply andb_true_iff. split => //.
+        apply orb_true_iff. left. apply when_true. naive_solver.
       + exists (existT (binary Bl Br φ) H0).
-        have ? : w2 ≠ [].
-        { intros ->.
-          apply reachable_sub_sentence, sublist_nil_r in He.
-          contradiction. }
-        destruct (decide (w1 = [])).
-        * apply orb_true_iff. left.
-          apply orb_true_iff. left.
-          have Hn : G ⊨ Bl ⇒ [] by congruence.
-          apply when_true. exists Hn.
-          rewrite e app_nil_l. naive_solver.
-        * apply orb_true_iff. right.
-          apply big_or_true. simpl in *.
-          have Hw : (w1, w2) ∈ nonempty_partition (w1 ++ w2).
-          { apply nonempty_partition_spec. naive_solver. }
-          exists (existT (w1, w2) Hw).
-          apply andb_true_iff. split => //.
-          apply orb_true_iff. right. apply andb_true_iff.
-          split; [by apply bool_decide_eq_true | naive_solver].
+        apply big_or_true.
+        have Hw : (w1, w2) ∈ partition (w1 ++ w2) by apply partition_spec; naive_solver.
+        exists (existT (w1, w2) Hw).
+        apply andb_true_iff. split => //.
+        apply orb_true_iff. right. apply when_true. naive_solver.
+  Qed.
+
+  Global Instance acyclic_reachable_dec A w H h :
+    Decision (reachable G (A, w) (H, h)).
+  Proof.
+    destruct (check_reach (A, w) (H, h)) eqn:Heqn.
+    - left. eapply check_reach_spec; eauto.
+    - right. apply not_true_iff_false in Heqn. intros ?.
+      by apply Heqn, check_reach_spec.
   Qed.
 
 End decidability.
