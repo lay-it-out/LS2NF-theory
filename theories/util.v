@@ -66,6 +66,11 @@ Program Fixpoint big_or {A : Type} (l : list A) (P : {x : A & x ∈ l} → bool)
 
 Lemma big_or_true {A : Type} (l : list A) (P : {x : A & x ∈ l} → bool) :
   big_or l P = true ↔ ∃ p, P p = true.
+Proof.
+  induction l => /=.
+  - split; first done.
+    intros [[? ?] ?]. exfalso. eapply elem_of_nil; eauto.
+  - rewrite orb_true_iff.
 Admitted.
 
 Program Definition when (P : Prop) `{Decision P} (body : P → bool) : bool :=
@@ -79,4 +84,5 @@ Qed.
 
 Lemma when_true P `{Decision P} b :
   when P b = true ↔ ∃ HP : P, b HP = true.
+Proof.
 Admitted.

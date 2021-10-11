@@ -46,6 +46,42 @@ Section sub_derive.
     eapply child_valid; eauto.
   Qed.
 
+  (* inversion lemmas *)
+
+  Lemma subtree_ε_inv t A :
+    subtree t (ε_tree A) → t = ε_tree A.
+  Proof.
+    intros H. apply rtc_inv_r in H.
+    destruct H as [|[T [? Hc]]]; first done.
+    by inversion Hc.
+  Qed.
+
+  Lemma subtree_token_inv t A tk :
+    subtree t (token_tree A tk) → t = token_tree A tk.
+  Proof.
+    intros H. apply rtc_inv_r in H.
+    destruct H as [|[T [? Hc]]]; first done.
+    by inversion Hc.
+  Qed.
+
+  Lemma subtree_unary_inv t' A t :
+    subtree t' (unary_tree A t) → t' = unary_tree A t ∨ subtree t' t.
+  Proof.
+    intros H. apply rtc_inv_r in H.
+    destruct H as [|[T [? Hc]]]; [by left | right].
+    inversion Hc; subst; clear Hc. done.
+  Qed.
+
+  Lemma subtree_binary_inv t' A tl tr :
+    subtree t' (binary_tree A tl tr) →
+    t' = binary_tree A tl tr ∨ subtree t' tl ∨ subtree t' tr.
+  Proof.
+    intros H. apply rtc_inv_r in H.
+    destruct H as [|[T [? Hc]]]; [by left | right].
+    inversion Hc; subst; clear Hc.
+    all: naive_solver.
+  Qed.
+
   (* sub derivation *)
 
   Definition sig : Type := N * sentence Σ.
@@ -213,6 +249,9 @@ Section sub_derive.
   Qed.
 
 End sub_derive.
+
+Arguments subtree {_} {_}.
+Arguments sub_derive {_} {_}.
 
 Arguments step {_} {_}.
 Arguments reachable {_} {_}.

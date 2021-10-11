@@ -9,12 +9,6 @@ Section decidability.
   Context `{EqDecision Σ}.
   Context `{EqDecision N}.
 
-  Global Instance token_eq_dec : EqDecision (token Σ).
-  Proof.
-    intros [a1 p1] [a2 p2].
-    destruct (decide (a1 = a2 ∧ p1 = p2)); [left | right]; naive_solver.
-  Qed.
-
   Variable G : grammar Σ N.
   Context `{acyclic G}.
 
@@ -177,18 +171,18 @@ Section decidability.
       + exists (existT (atom a) H2).
         repeat case_match => //.
         apply bool_decide_eq_true. naive_solver.
-      + exists (existT (unary (tree_root t) φ) H3).
+      + exists (existT (unary (root t) φ) H3).
         apply andb_true_iff. naive_solver.
-      + exists (existT (binary (tree_root t1) (tree_root t2) φ) H4).
-        destruct (decide (tree_word t1 = []));
-          last destruct (decide (tree_word t2 = [])).
-        * have Hn : G ⊨ tree_root t1 ⇒ [].
+      + exists (existT (binary (root t1) (root t2) φ) H4).
+        destruct (decide (word t1 = []));
+          last destruct (decide (word t2 = [])).
+        * have Hn : G ⊨ root t1 ⇒ [].
           { exists t1. by repeat split. }
           apply orb_true_iff. left.
           apply orb_true_iff. left.
           apply when_true. exists Hn.
           simpl in *. rewrite e app_nil_l. naive_solver.
-        * have Hn : G ⊨ tree_root t2 ⇒ [].
+        * have Hn : G ⊨ root t2 ⇒ [].
           { exists t2. by repeat split. }
           apply orb_true_iff. left.
           apply orb_true_iff. right.
@@ -196,9 +190,9 @@ Section decidability.
           simpl in *. rewrite e app_nil_r. naive_solver.
         * apply orb_true_iff. right.
           apply big_or_true. simpl in *.
-          have Hw : (tree_word t1, tree_word t2) ∈ nonempty_partition (tree_word t1 ++ tree_word t2).
+          have Hw : (word t1, word t2) ∈ nonempty_partition (word t1 ++ word t2).
           { apply nonempty_partition_spec. naive_solver. }
-          exists (existT (tree_word t1, tree_word t2) Hw).
+          exists (existT (word t1, word t2) Hw).
           apply andb_true_iff. split.
           apply andb_true_iff. split.
           all: naive_solver.

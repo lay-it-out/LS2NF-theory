@@ -26,6 +26,12 @@ Section grammar.
 
   Definition sentence : Type := list token.
 
+  Global Instance token_eq_dec : EqDecision token.
+  Proof.
+    intros [a1 p1] [a2 p2].
+    destruct (decide (a1 = a2 ∧ p1 = p2)); [left | right]; naive_solver.
+  Qed.
+
   (* nonterminals *)
 
   Variable N : Type.
@@ -128,7 +134,7 @@ Section grammar.
     | binary_tree : N → tree → tree → tree
     .
 
-  Definition tree_root t : N :=
+  Definition root t : N :=
     match t with
     | ε_tree R => R
     | token_tree R _ => R
@@ -136,13 +142,41 @@ Section grammar.
     | binary_tree R _ _ => R
     end.
 
-  Fixpoint tree_word t : sentence :=
+  Fixpoint word t : sentence :=
     match t with
     | ε_tree _ => []
     | token_tree _ tk => [tk]
-    | unary_tree _ t' => tree_word t'
-    | binary_tree _ t1 t2 => tree_word t1 ++ tree_word t2
+    | unary_tree _ t' => word t'
+    | binary_tree _ t1 t2 => word t1 ++ word t2
     end.
+
+  Fixpoint check_tree_eq t1 t2 : bool :=
+    match t1, t2 with
+    | ε_tree A, ε_tree A' => bool_decide (A = A')
+    | token_tree A tk1, token_tree A' tk2 => bool_decide (A = A' ∧ tk1 = tk2)
+    | unary_tree A t1, unary_tree A' t2 =>
+      bool_decide (A = A') && check_tree_eq t1 t2
+    | binary_tree A tA1 tB1, binary_tree A' tA2 tB2 =>
+      bool_decide (A = A') && check_tree_eq tA1 tA2 && check_tree_eq tB1 tB2
+    | _, _ => false
+    end.
+
+  Lemma check_tree_eq_spec t1 t2 :
+    check_tree_eq t1 t2 = true ↔ t1 = t2.
+  Proof.
+    generalize dependent t2.
+    induction t1; destruct t2 => //=.
+    all: try rewrite !andb_true_iff.
+    all: rewrite !bool_decide_eq_true.
+    all: naive_solver.
+  Qed.
+
+  Global Instance tree_eq_dec : EqDecision tree.
+  Proof.
+    intros t1 t2.
+    have ? := check_tree_eq_spec t1 t2.
+    destruct (check_tree_eq t1 t2); [left | right]; naive_solver.
+  Qed.
 
   Inductive tree_valid G : tree → Prop :=
     | valid_ε A :
@@ -152,22 +186,22 @@ Section grammar.
       A ↦ atom a ∈ G →
       tree_valid G (token_tree A (a @ p))
     | valid_unary A t' φ :
-      A ↦ unary (tree_root t') φ ∈ G →
+      A ↦ unary (root t') φ ∈ G →
       tree_valid G t' →
-      apply₁ φ (tree_word t') = true →
+      apply₁ φ (word t') = true →
       tree_valid G (unary_tree A t')
     | valid_binary A t1 t2 φ :
-      A ↦ binary (tree_root t1) (tree_root t2) φ ∈ G →
+      A ↦ binary (root t1) (root t2) φ ∈ G →
       tree_valid G t1 →
       tree_valid G t2 →
-      apply₂ φ (tree_word t1) (tree_word t2) = true →
+      apply₂ φ (word t1) (word t2) = true →
       tree_valid G (binary_tree A t1 t2)
     .
 
   Notation "✓{ G } t" := (tree_valid G t) (at level 40, format "'✓{' G '}'  t").
 
   Definition tree_witness G t A w :=
-    tree_root t = A ∧ tree_word t = w ∧ ✓{G} t.
+    root t = A ∧ word t = w ∧ ✓{G} t.
 
   Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40).
 
@@ -176,21 +210,21 @@ Section grammar.
     | ε_tree A => bool_decide (A ↦ ε ∈ G)
     (* | token_tree A tk => atom_productions G A (letter tk)
     | unary_tree A t' =>
-      match unary_productions G A (tree_root t') with
-      | Some φ => tree_valid G t' && φ (tree_word t')
+      match unary_productions G A (root t') with
+      | Some φ => tree_valid G t' && φ (word t')
       | None => false
       end
     | binary_tree A t1 t2 =>
-      match binary_productions G A (tree_root t1) (tree_root t2) with
-      | Some φ => tree_valid G t1 && tree_valid G t2 && φ (tree_word t1) (tree_word t2)
+      match binary_productions G A (root t1) (root t2) with
+      | Some φ => tree_valid G t1 && tree_valid G t2 && φ (word t1) (word t2)
       | None => false
       end *)
     | _ => false
     end. *)
 (* 
   Global Instance ParseTree_tree : ParseTree tree := {|
-    root := tree_root;
-    word := tree_word;
+    root := root;
+    word := word;
     valid := tree_valid;
   |}. *)
 
@@ -286,8 +320,8 @@ Arguments token_tree {_} {_}.
 Arguments unary_tree {_} {_}.
 Arguments binary_tree {_} {_}.
 
-Arguments tree_root {_} {_}.
-Arguments tree_word {_} {_}.
+Arguments root {_} {_}.
+Arguments word {_} {_}.
 Arguments tree_valid {_} {_}.
 Arguments derive {_} {_}.
 Arguments nullable {_} {_} {_} {_}.
@@ -305,3 +339,6 @@ Notation "✓{ G } t" := (tree_valid G t) (at level 40, format "'✓{' G '}'  t"
 Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
 
 Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40).
+
+Arguments derive_amb {_} {_}.
+Arguments amb {_} {_}.
