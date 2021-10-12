@@ -359,3 +359,8 @@ Section decidability.
   Qed.
 
 End decidability.
+
+Arguments nonempty_partition {_}.
+Arguments partition {_}.
+Arguments check_derive {_} {_} {_} {_} _ {_}.
+Arguments check_reach {_} {_} {_} {_} _ {_}.
