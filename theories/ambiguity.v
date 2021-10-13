@@ -281,3 +281,5 @@ Section ambiguity.
   Qed.
 
 End ambiguity.
+
+Arguments similar {_} {_}.

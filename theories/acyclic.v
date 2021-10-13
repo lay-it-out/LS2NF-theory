@@ -36,6 +36,10 @@ Section acyclic.
     acyclic G → wf (flip (succ G)).
   Admitted.
 
+  Fact acyclic_succ_wf G :
+    acyclic G → wf (succ G).
+  Admitted.
+
 End acyclic.
 
 Arguments succ {_} {_}.

@@ -170,6 +170,11 @@ Section sub_derive.
         by exists t1. by apply IHt2.
   Qed.
 
+  Lemma reachable_sublist A B w v :
+    (A, w) →∗ (B, v) →
+    v `sublist_of` w.
+  Admitted.
+
   Inductive reachable_to σ : sig → Prop :=
   | reachable_to_refl :
     reachable_to σ σ
