@@ -17,6 +17,7 @@ Section encoding.
     term : nat → Σ;
     line : nat → nat;
     col : nat → nat;
+    line_col i := (line i, col i);
     can_derive : N → nat (* start (inclusive) *) → nat (* length *) → bool;
     can_reach_from : N → nat (* start (inclusive) *) → nat (* length *) → bool;
   }.
@@ -273,9 +274,66 @@ Section encoding.
         * by rewrite -Hw1.
     Admitted.
 
-  (* encoding multiple derivation *)
+  (* decode properties *)
 
-  Definition Φ_binary_derive Bl Br φ x δl δr : formula := λ m,
+  Lemma decode_empty m x δ :
+    decode m x δ = [] ↔ δ = 0.
+  Proof.
+    (* intros H. *)
+    (* have : length (decode m x δ) = length [] by rewrite H. *)
+    (* rewrite decode_length. naive_solver. *)
+  Admitted.
+
+  Lemma decode_singleton m x δ a p :
+    decode m x δ = [a @ p] →
+    δ = 1 ∧ a = term m x ∧ p = (line m x, col m x).
+  Proof.
+    intros H.
+  Admitted.
+
+  Lemma decode_app_l m x δ w1 w2 :
+    decode m x δ = w1 ++ w2 →
+    decode m x (length w1) = w1.
+  Admitted.
+
+  (* encoding derivations of different prologue *)
+
+  Inductive prologue : Type :=
+  | pro_ε
+  | pro_atom (a : Σ)
+  | pro_unary (A : N)
+  | pro_binary (A B : N) (δ : nat) (* length of first part *)
+  .
+
+  Local Instance prologue_elem_of_nonterm : ElemOf prologue N := λ ψ A,
+    match ψ with
+    | pro_ε => A ↦ ε ∈ G
+    | pro_atom a => A ↦ atom a ∈ G
+    | pro_unary B => ∃ φ, A ↦ unary B φ ∈ G
+    | pro_binary Bl Br _ => ∃ φ, A ↦ binary Bl Br φ ∈ G
+    end.
+
+  Definition Φ_pro ψ A x δ : formula := λ m,
+    match ψ with
+    | pro_ε => δ = 0
+    | pro_atom a => δ = 1 ∧ a = term m x
+    | pro_unary B =>
+      match δ with
+      | 0 => G ⊨ B ⇒ []
+      | _ => can_derive m B x δ = true ∧
+        apply₁ (unary_clause_predicate _ _ G A B) (decode m x δ) = true
+      end
+    | pro_binary Bl Br δ' =>
+      match δ', δ - δ' with
+      | 0, _ => G ⊨ Bl ⇒ [] ∧ can_derive m Br x δ = true
+      | _, 0 => can_derive m Bl x δ' = true ∧ G ⊨ Br ⇒ []
+      | _, _ => can_derive m Bl x δ' = true ∧ 
+        can_derive m Br (x + δ') (δ - δ') = true ∧
+        apply₂ (binary_clause_predicate _ _ G A Bl Br) (decode m x δ') (decode m (x + δ') (δ - δ')) = true
+      end
+    end.
+
+  (* Definition Φ_binary_derive Bl Br φ x δl δr : formula := λ m,
     match δl, δr with
     | 0, _ => G ⊨ Bl ⇒ [] ∧ can_derive m Br x δr = true
     | _, 0 => can_derive m Bl x δl = true ∧ G ⊨ Br ⇒ []
@@ -289,7 +347,7 @@ Section encoding.
     A ↦ binary Bl Br φ ∈ G →
     Φ_binary_derive Bl Br φ x δl δr m ↔
       ∃ t1 t2, root t1 = Bl ∧ root t2 = Br ∧ word t1 = decode m x δl ∧
-        (binary_tree A t1 t2) ▷ A ={G}=> decode m x (δl + δr).
+        (binary_tree A t1 t2) ▷ A ={G}=> decode m x (δl + δr). *)
   (* Proof.
     intros ? ? ? ? ? [Hdl [Hdr ?]].
     eapply Φ_derive_spec in Hdl as [t1 [? [? ?]]]; eauto; try lia.
@@ -300,8 +358,7 @@ Section encoding.
     repeat split. simpl in *. congruence.
     econstructor => //. naive_solver. by rewrite H9 H6.
   Qed. *)
-  Admitted.
-
+(* 
   Definition Φ_clause_derive (α : clause Σ N) (x δ : nat) : formula := λ m,
     match α with
     | ε => δ = 0
@@ -313,151 +370,133 @@ Section encoding.
       end
     | binary Bl Br φ => ∃ δl δr,
       δl + δr = δ ∧ Φ_binary_derive Bl Br φ x δl δr m
-    end.
+    end. *)
 
-  Lemma Φ_clause_derive_witness k m x δ A α :
+  Ltac solve_witness :=
+    repeat split; simpl; try done; try congruence;
+    econstructor; eauto.
+
+  Lemma Φ_pro_witness k m x δ A ψ :
     Φ_derive k m →
     x + δ ≤ k →
-    A ↦ α ∈ G →
-    Φ_clause_derive α x δ m ↔ match α with
-      | ε => δ = 0 ∧ ε_tree A ▷ A ={G}=> decode m x δ
-      | atom a => δ = 1 ∧ term m x = a ∧ (token_tree A (a @ (line m x, col m x))) ▷ A ={G}=> decode m x δ
-      | unary B φ => ∃ t, root t = B ∧ (unary_tree A t) ▷ A ={G}=> decode m x δ
-      | binary Bl Br φ => ∃ t1 t2, root t1 = Bl ∧ root t2 = Br ∧
-        (binary_tree A t1 t2) ▷ A ={G}=> decode m x δ
+    ψ ∈ A →
+    Φ_pro ψ A x δ m ↔ match ψ with
+      | pro_ε => δ = 0 ∧ ε_tree A ▷ A ={G}=> decode m x δ
+      | pro_atom a => δ = 1 ∧ a = term m x ∧ let p := (line m x, col m x) in
+        (token_tree A (a @ p)) ▷ A ={G}=> decode m x δ
+      | pro_unary B => ∃ t, root t = B ∧ (unary_tree A t) ▷ A ={G}=> decode m x δ
+      | pro_binary Bl Br δ' => ∃ t1 t2, root t1 = Bl ∧ root t2 = Br ∧
+        word t1 = decode m x δ' ∧ (binary_tree A t1 t2) ▷ A ={G}=> decode m x δ
       end.
+  Proof.
+    intros ? ? Hψ. case_match => /=; split.
+    all: simpl in Hψ.
+    - intros ->. solve_witness.
+    - naive_solver.
+    - intros [-> ->]. solve_witness.
+    - naive_solver.
+    - destruct Hψ as [φ ?].
+      case_match.
+      * intros [t [? [? ?]]]. subst. exists t. solve_witness.
+        destruct φ as [φ ?]. simpl. congruence.
+      * intros [? ?].
+        eapply Φ_derive_spec in H2 as [t [? [? ?]]]; eauto; try lia.
+        subst. exists t. solve_witness.
+        have ? : unary_clause_predicate Σ N G A (root t) = φ. admit.
+        congruence.
+    - destruct Hψ as [φ ?].
+      intros [t [? [? [? Ht]]]]. inversion Ht; subst; clear Ht.
+      case_match. 2: split.
+      * exists t. solve_witness.
+      * eapply Φ_derive_spec; eauto; try lia. exists t. solve_witness.
+      * have ? : word (unary_tree A t) = word t by done.
+        have ? : unary_clause_predicate Σ N G A (root t) = φ0. admit.
+        congruence.
+    - destruct Hψ as [φ ?]. repeat case_match.
   Admitted.
-  (* Proof.
-    intros ? ? ? ? Hd.
-    destruct α; simpl in Hd.
-    - split; first done. repeat split. naive_solver.
-      by constructor.
-    - destruct Hd as [? ?].
-      do 2 (split; first done). repeat split. naive_solver.
-      by constructor.
-    - destruct Hd as [Hd ?].
-      eapply Φ_derive_spec in Hd as [t [? [? ?]]]; eauto.
-      exists t. split; first done. repeat split => //.
-      econstructor => //. naive_solver. by rewrite H5.
-    - destruct Hd as [δ' [? Hb]].
-      eapply binary_can_derive_witness in Hb; eauto; try lia.
-      naive_solver.
-  Qed. *)
 
   Definition Φ_multi (A : N) (x δ : nat) : formula := λ m,
-    (∃ α β, α ≠ β ∧ A ↦ α ∈ G ∧ A ↦ β ∈ G ∧
-      Φ_clause_derive α x δ m ∧ Φ_clause_derive β x δ m) ∨
-    (∃ δ₁ δ₂ Bl Br φ, δ₁ ≠ δ₂ ∧ δ₁ ≤ δ ∧ δ₂ ≤ δ ∧ A ↦ binary Bl Br φ ∈ G ∧
-      Φ_binary_derive Bl Br φ x δ₁ (δ - δ₁) m ∧
-      Φ_binary_derive Bl Br φ x δ₂ (δ - δ₂) m).
+    ∃ ψ1, ψ1 ∈ A ∧
+     ∃ ψ2, ψ2 ∈ A ∧ ψ1 ≠ ψ2 ∧ Φ_pro ψ1 A x δ m ∧ Φ_pro ψ2 A x δ m.
 
-  Ltac split_exist_and :=
-    repeat match goal with
-    | [ H : _ ∧ _ |- _ ] => destruct H as [? ?]
-    | [ H : ∃ _, _ ∧ _ ∧ _ |- _ ] => destruct H as [? [? [? ?]]]
-    | [ H : ∃ _, _ ∧ _ |- _ ] => destruct H as [? [? ?]]
-    | [ H : ∃ _, _ |- _ ] => destruct H as [? ?]
-    | [ H : ∃ _ _, _ ∧ _ ∧ _ |- _ ] => destruct H as [[? [? [? [? ?]]]]]
-    | [ H : ∃ _ _,  _ ∧ _ |- _ ] => destruct H as [? [? [? ?]]]
-    | [ H : ∃ _ _, _ |- _ ] => destruct H as [? [? ?]]
-    end.
+  Lemma wrap_with_id (P : Prop) :
+    P ↔ id P.
+  Proof. done. Qed.
 
-  Lemma root_eq {t1 t2 A w1 w2} :
-    t1 ▷ A ={G}=> w1 →
-    t2 ▷ A ={G}=> w2 →
-    root t1 = A ∧ root t2 = A.
-  Admitted.
+  Ltac wrap H := apply ->wrap_with_id in H.
 
-  Ltac unify_root :=
-    match goal with
-    | [ H1 : ?t1 ▷ ?A ={?G}=> _, H2 : ?t2 ▷ ?A ={?G}=> _ |- _ ] =>
-      let Hr1 := fresh in
-      let Hr2 := fresh in
-      destruct (root_eq H1 H2) as [Hr1 Hr2]; simpl in Hr1; simpl in Hr2; subst
-    end.
-
-  Lemma multi_derive_encoding_sound k m x δ A :
+  Lemma Φ_multi_spec k m x δ A :
     Φ_derive k m →
     x + δ ≤ k →
-    Φ_multi A x δ m ↔ ∃ t1 t2,
-      t1 ▷ A ={G}=> decode m x δ ∧ t2 ▷ A ={G}=> decode m x δ ∧ ¬ similar t1 t2.
+    Φ_multi A x δ m ↔ ∃ t1, t1 ▷ A ={G}=> decode m x δ ∧
+      ∃ t2, t2 ▷ A ={G}=> decode m x δ ∧ ¬ similar t1 t2.
   Proof.
-    intros Hd ?. split.
+    intros ? ?. split.
     - (* -> *)
-      intros [HΦ|HΦ].
-      + destruct HΦ as [α [β [? [? [? [Hα Hβ]]]]]].
-        eapply Φ_clause_derive_witness in Hα; eauto.
-        eapply Φ_clause_derive_witness in Hβ; eauto.
-        repeat case_match.
-        all: split_exist_and.
-        all: try congruence.
-        all: eexists; eexists.
-        all: repeat match goal with
-        | [ H : ?t ▷ ?A ={?G}=> ?w |- _ ▷ ?A ={?G}=> ?w ∧ _ ] =>
-        split; [by exact H|]; clear H
-        end => //.
-        * admit.
-        * admit.
-      + destruct HΦ as [δ₁ [δ₂ [Bl [Br [φ [? [? [? [? [Hδ₁ Hδ₂]]]]]]]]]].
-        eapply Φ_binary_derive_witness in Hδ₁ as [tl1 [tr1 [? [? [Hw1 Ht1]]]]]; eauto; try lia.
-        eapply Φ_binary_derive_witness in Hδ₂ as [tl2 [tr2 [? [? [Hw2 Ht2]]]]]; eauto; try lia.
-        have Hr1 : δ₁ + (δ - δ₁) = δ by lia. rewrite Hr1 in Ht1.
-        have Hr2 : δ₂ + (δ - δ₂) = δ by lia. rewrite Hr2 in Ht2.
-        do 2 eexists. split; first by apply Ht1. split; first by apply Ht2.
-        have ? : word tl1 ≠ word tl2.
-        { rewrite Hw1 Hw2. intros ?.
-          have : length (decode m x δ₁) = length (decode m x δ₂) by congruence.
-          by rewrite !decode_length. }
-        naive_solver.
+      intros [ψ1 [ψ2 [? [? [? [Hψ1 Hψ2]]]]]].
+      eapply Φ_pro_witness in Hψ1; eauto.
+      eapply Φ_pro_witness in Hψ2; eauto.
+      repeat case_match.
+      all: repeat match goal with
+      | [ H : _ ∧ _ |- _ ] => destruct H as [? ?]
+      | [ H : ∃ _, _ |- _ ] => destruct H as [? ?]
+      end.
+      all: simpl in *; try congruence.
+      all: repeat match goal with
+      | [ H : ?t ▷ ?A ={?G}=> ?w |- ∃ t, t ▷ ?A ={?G}=> ?w ∧ _ ] =>
+        exists t; split; [by apply H|]; clear H
+      end => //.
+      + congruence. 
+      + simpl. intros [? [? ?]]; subst.
+        have Hl : length (decode m x δ1) = length (decode m x δ0)
+          by f_equal; congruence.
+        rewrite !decode_length in Hl. congruence.
     - (* <- *)
-      intros [t1 [t2 [Ht1 [Ht2 Hne]]]].
-      destruct t1; destruct t2; unify_root.
-      all: simpl in Hne => //.
-      + admit.
-      + left.
-        destruct Ht1 as [? [? Ht1]]. inversion Ht1; subst; clear Ht1.
-        destruct Ht2 as [? [? Ht2]]. inversion Ht2; subst; clear Ht2.
-        exists ε, (unary (root t2) φ).
-        split => //.
-        split => //.
-        split => //.
-        split.
-          eapply Φ_clause_derive_witness; eauto. admit.
-          eapply Φ_clause_derive_witness; eauto. exists t2. admit.
-      + admit. 
-      + admit. 
-      + admit. 
-      + admit. 
-      + admit. 
-      + admit. 
-      + admit. 
-      + left.
-        destruct Ht1 as [? [? Ht1]]. inversion Ht1; subst; clear Ht1.
-        destruct Ht2 as [? [? Ht2]]. inversion Ht2; subst; clear Ht2.
-        have ? : φ0 = φ. admit. subst.
-        exists (unary (root t1) φ), (unary (root t2) φ).
-        split. naive_solver.
-        split => //.
-        split => //.
-        split.
-          eapply Φ_clause_derive_witness; eauto. exists t1. admit.
-          eapply Φ_clause_derive_witness; eauto. exists t2. admit.
-      + admit. 
-      + admit.
-      + admit.
-      + admit.
-      + destruct (decide (root t1_1 = root t2_1 ∧ root t1_2 = root t2_2)) as [Hne'|Hne'].
-        * have ? : word t1_1 ≠ word t2_1 by naive_solver.
-          right.
-          destruct Ht1 as [? [? Ht1]]. inversion Ht1; subst; clear Ht1.
-          destruct Ht2 as [? [? Ht2]]. inversion Ht2; subst; clear Ht2.
-          admit.
-        * apply not_and_l in Hne' as [|].
-          all: left.
-          all: destruct Ht1 as [? [? Ht1]]. inversion Ht1; subst; clear Ht1.
-          all: destruct Ht2 as [? [? Ht2]]. inversion Ht2; subst; clear Ht2.
-          all: admit.
-  Admitted.
+      intros [t1 [[? [? Ht1]] [t2 [[? [? Ht2]] ?]]]].
+      destruct t1; destruct t2.
+      all: simpl in *; try done; try congruence.
+      all: inversion Ht1; subst; clear Ht1.
+      all: inversion Ht2; subst; clear Ht2.
+      all: unfold Φ_multi.
+      all: repeat match goal with
+      | [ H : ?A ↦ ε ∈ _ |- ∃ ψ, ψ ∈ ?A ∧ _ ] =>
+        assert (pro_ε ∈ A) by (apply H);
+        exists pro_ε; split; [done|]; wrap H
+      | [ H : ?A ↦ atom ?a ∈ _ |- ∃ ψ, ψ ∈ ?A ∧ _ ] =>
+        assert (pro_atom a ∈ A) by (apply H);
+        exists (pro_atom a); split; [done|]; wrap H
+      | [ H : ?A ↦ unary ?B ?φ ∈ _ |- ∃ ψ, ψ ∈ ?A ∧ _ ] =>
+        assert (pro_unary B ∈ A) by (by exists φ);
+        exists (pro_unary B); split; [done|]; wrap H
+      | [ H : ?A ↦ binary (root ?t1) (root ?t2) ?φ ∈ _ |- ∃ ψ, ψ ∈ ?A ∧ _ ] =>
+        assert (pro_binary (root t1) (root t2) (length (word t1)) ∈ A) by (by exists φ);
+        exists (pro_binary (root t1) (root t2) (length (word t1)));
+        split; [done|]; wrap H
+      end.
+      all: split; first try congruence.
+      12: {
+        intros Heq. inversion Heq; subst; clear Heq.
+        have Hw : word t1_1 ++ word t1_2 = word t2_1 ++ word t2_2 by congruence.
+        apply app_inj_1 in Hw => //. naive_solver.
+      }
+      all: try (split; eapply Φ_pro_witness; simpl; eauto).
+      all: repeat match goal with
+      | [ |- _ ▷ _ ={ _ }=> _ ] =>
+        repeat split; simpl; try done; try congruence; econstructor; eauto
+      | [ H : [] = decode _ _ ?δ |- ?δ = 0 ∧ _ ] =>
+        symmetry in H; rewrite H; apply decode_empty in H;
+        split; first done
+      | [ H : [_] = decode _ _ ?δ |- ?δ = 1 ∧ _ = term _ _ ∧ _ ] =>
+        symmetry in H; rewrite H; apply decode_singleton in H as [? [? ?]];
+        do 2 (split; first done)
+      | [ |- word ?t = decode _ _ _ ∧ _ ] =>
+        split; first by erewrite decode_app_l; eauto
+      | [ |- ∃ t, root t = root ?t' ∧ _ ] =>
+        exists t'; split; first done
+      | [ |- ∃ t1 t2, root t1 = root ?t1' ∧ root t2 = root ?t2' ∧ _ ] =>
+        exists t1', t2'; do 2 (split; first done)
+      end.
+  Qed.
 
   (* Main theorems *)
 
