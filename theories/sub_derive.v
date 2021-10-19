@@ -1,6 +1,6 @@
 From stdpp Require Import relations list.
 From Coq Require Import ssreflect.
-From ambig Require Import grammar util.
+From ambig Require Import grammar util slice.
 
 Section sub_derive.
 
@@ -170,10 +170,34 @@ Section sub_derive.
         by exists t1. by apply IHt2.
   Qed.
 
-  Lemma reachable_sublist A B w v :
-    (A, w) →∗ (B, v) →
-    v `sublist_of` w.
+  Lemma step_sub A w B v :
+    (A, w) →₁ (B, v) →
+    ∃ vl vr, w = vl ++ v ++ vr.
+  Proof.
+    inversion 1; subst.
+    - exists [], []. by rewrite app_nil_l app_nil_r.
+    - exists [], wr. by rewrite app_nil_l.
+    - exists wl, []. by rewrite app_nil_r.
+  Qed.
+
+  Lemma reachable_sub_sig σ τ :
+    σ →∗ τ →
+    ∃ vl vr, σ.2 = vl ++ τ.2 ++ vr.
+  Proof.
+    induction 1 as [[A w]|[A w] [B u] [C v] Hst ? IHst].
+    - exists [], []. by rewrite app_nil_l app_nil_r.
+    - simpl in *.
+      apply step_sub in Hst as [v1 [v4 ->]].
+      destruct IHst as [v2 [v3 ->]].
+      exists (v1 ++ v2), (v3 ++ v4).
+      (* by assoc *)
   Admitted.
+
+  Lemma reachable_sublist A w B v :
+    (A, w) →∗ (B, v) → sublist v w.
+  Proof.
+    apply reachable_sub_sig.
+  Qed.
 
   Inductive reachable_to σ : sig → Prop :=
   | reachable_to_refl :
@@ -253,6 +277,35 @@ Section sub_derive.
       + eapply reachable_from_right; eauto.
   Qed.
 
+  Definition check_reachable_from σ τ : Prop :=
+    match σ, τ with
+    | (X, u), (B, w) =>
+      (B = X ∧ w = u) ∨
+      (∃ A φ, A ↦ unary B φ ∈ G ∧ reachable_from σ (A, w) ∧ apply₁ φ w = true) ∨
+      (∃ A B' φ w', A ↦ binary B B' φ ∈ G ∧ reachable_from σ (A, w ++ w') ∧ G ⊨ B' ⇒ w' ∧
+        apply₂ φ w w' = true) ∨
+      (∃ A B' φ w', A ↦ binary B' B φ ∈ G ∧ reachable_from σ (A, w' ++ w) ∧ G ⊨ B' ⇒ w' ∧
+        apply₂ φ w' w = true)
+    end.
+
+  Lemma check_reachable_from_spec σ τ :
+    check_reachable_from σ τ ↔ reachable_from σ τ.
+  Proof.
+    destruct σ as [X u].
+    destruct τ as [B w].
+    split.
+    - intros [H|[H|[H|H]]].
+      + destruct H as [-> ->]. apply reachable_from_refl.
+      + destruct H as [A [φ [? [? ?]]]]. eapply reachable_from_unary; eauto.
+      + destruct H as [A [B' [φ [w' [? [? [? ?]]]]]]]. eapply reachable_from_left; eauto.
+      + destruct H as [A [B' [φ [w' [? [? [? ?]]]]]]]. eapply reachable_from_right; eauto.
+    - inversion 1; subst.
+      + by left.
+      + right; left. naive_solver.
+      + right; right; left. naive_solver.
+      + right; right; right. naive_solver.
+  Qed.
+
 End sub_derive.
 
 Arguments subtree {_} {_}.
@@ -262,3 +315,4 @@ Arguments step {_} {_}.
 Arguments reachable {_} {_}.
 Arguments reachable_to {_} {_}.
 Arguments reachable_from {_} {_}.
+Arguments check_reachable_from {_} {_}.

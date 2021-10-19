@@ -235,7 +235,7 @@ Section grammar.
 
   Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
 
-  Lemma derive_ε G A :
+  (* Lemma derive_ε G A :
     A ↦ ε ∈ G →
     G ⊨ A ⇒ [].
   Proof.
@@ -272,7 +272,7 @@ Section grammar.
     exists (binary_tree A t1 t2).
     repeat split; try naive_solver.
     econstructor; naive_solver.
-  Qed.
+  Qed. *)
 
   (* nullability *)
 
