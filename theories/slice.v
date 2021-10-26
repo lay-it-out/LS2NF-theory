@@ -9,27 +9,29 @@ Section slice.
   Definition slice l a k : list A :=
     take k (drop a l).
 
+  Lemma slice_nil l a :
+    slice l a 0 = [].
+  Proof.
+    by rewrite /slice take_0.
+  Qed.
+
+  Lemma slice_full l k :
+    k = length l → slice l 0 k = l.
+  Proof.
+    intros ->. by rewrite /slice drop_0 firstn_all.
+  Qed.
+
   Lemma slice_length l a k :
     a + k ≤ length l → length (slice l a k) = k.
   Proof.
     rewrite take_length drop_length. lia.
   Qed.
 
-  Lemma slice_lookup l a k i :
-    (slice l a k) !! i = l !! (a + i).
-  Admitted.
-
   Lemma slice_nil_iff l a k :
     a + k ≤ length l →
     slice l a k = [] ↔ k = 0.
   Proof.
     intros. rewrite -length_zero_iff_nil slice_length //.
-  Qed.
-
-  Lemma slice_nil l a :
-    a ≤ length l → slice l a 0 = [].
-  Proof.
-    intros. apply slice_nil_iff; lia.
   Qed.
 
   Lemma slice_nonempty_iff l a k :
@@ -40,14 +42,36 @@ Section slice.
     by apply not_iff_compat, slice_nil_iff.
   Qed.
 
-  Lemma slice_singleton_iff l a k x :
-    slice l a k = [x] ↔ k = 1 ∧ l !! a = Some x.
-  Admitted.
+  Lemma slice_lookup l a k i :
+    i < k → (slice l a k) !! i = l !! (a + i).
+  Proof.
+    intros. by rewrite /slice lookup_take ?lookup_drop.
+  Qed.
 
   Lemma slice_singleton l a x :
-    l !! a = Some x →
-    slice l a 1 = [x].
-  Admitted.
+    l !! a = Some x → slice l a 1 = [x].
+  Proof.
+    intros. eapply list_eq_same_length; eauto.
+    - have ? : a < length l by apply lookup_lt_is_Some; naive_solver.
+      rewrite slice_length //; lia.
+    - intros i x' x'' => /= => ?.
+      rewrite slice_lookup //.
+      have -> : i = 0 by lia.
+      rewrite Nat.add_0_r. naive_solver.
+  Qed.
+
+  Lemma slice_singleton_iff l a k x :
+    a + k ≤ length l →
+    slice l a k = [x] ↔ k = 1 ∧ l !! a = Some x.
+  Proof.
+    intros. split.
+    - intros Heq.
+      have ? : k = 1.
+      { apply (f_equal length) in Heq. by rewrite slice_length in Heq. }
+      subst. apply (f_equal (lookup 0)) in Heq. simpl in Heq.
+      rewrite slice_lookup in Heq; [lia|]. by rewrite Nat.add_0_r in Heq.
+    - intros [-> ?]. by apply slice_singleton.
+  Qed.
 
   Lemma slice_full_iff l a k :
     a + k ≤ length l → l ≠ [] →
@@ -59,32 +83,34 @@ Section slice.
     - intros [-> ->]. by rewrite /slice drop_0 firstn_all.
   Qed.
 
-  Lemma slice_full l k :
-    k = length l → slice l 0 k = l.
+  Lemma slice_app_1 l a k1 k2 :
+    slice l a k1 ++ slice l (a + k1) k2 = slice l a (k1 + k2).
   Proof.
-    intros ->. by rewrite /slice drop_0 firstn_all.
+    by rewrite /slice -drop_drop take_take_drop.
   Qed.
 
-  Lemma slice_cons_Some l l' a k x :
-    x :: l' = slice l a k →
-    l !! a = Some x.
-  Admitted.
+  Lemma slice_app_2 l a k1 k2 :
+    k1 ≤ a →
+    slice l (a - k1) k1 ++ slice l a k2 = slice l (a - k1) (k1 + k2).
+  Proof.
+    intros. have {2}-> : a = (a - k1) + k1 by lia.
+    by rewrite slice_app_1.
+  Qed.
 
   Lemma slice_split l a k h :
+    h ≤ k →
     slice l a k = slice l a h ++ slice l (a + h) (k - h).
-  Admitted.
+  Proof.
+    intros. have {1}-> : k = h + (k - h) by lia.
+    by rewrite slice_app_1.
+  Qed.
 
-  Lemma slice_app_merge_2 l a k1 k2 :
-    slice l a k1 ++ slice l (a + k1) k2 = slice l a (k1 + k2).
-  Admitted.
-
-  Lemma slice_merge_2 l a k1 k2 :
-    slice l (a - k1) k1 ++ slice l a k2 = slice l (a - k1) (k1 + k2).
-  Admitted.
-
+  (* TODO: same with slice_app_1 *)
   Lemma slice_app w x δ δ' :
     slice w x (δ + δ') = slice w x δ ++ slice w (x + δ) δ'.
-  Admitted.
+  Proof.
+    by rewrite slice_app_1.
+  Qed.
 
   Lemma NoDup_lookup_in_range l i j :
     NoDup l →
@@ -102,93 +128,130 @@ Section slice.
 
   Lemma slice_eq_inv_NoDup l a k a' k' :
     NoDup l →
-    l ≠ [] →
+    a + k ≤ length l →
+    a' + k' ≤ length l →
+    0 < k' →
     slice l a k = slice l a' k' →
     a' = a ∧ k' = k.
-  Admitted.
+  Proof.
+    intros ? ? ? ? Heq.
+    have ? : k = k'.
+    { apply (f_equal length) in Heq. rewrite !slice_length in Heq => //. }
+    subst. split => //.
+    apply (f_equal (lookup 0)) in Heq.
+    rewrite !slice_lookup ?Nat.add_0_r in Heq => //.
+    eapply NoDup_lookup_in_range; eauto; lia.
+  Qed.
 
-  Lemma slice_app_inv_NoDup l a k l1 l2 :
+  Lemma slice_app_inv_NoDup_aux l a k a1 k1 a2 k2 :
     NoDup l →
-    l1 ≠ [] →
-    l2 ≠ [] →
-    slice l a k = l1 ++ l2 →
-    l1 = slice l a (length l1) ∧ l2 = slice l (a + length l1) (k - length l1).
-  Admitted.
-
-  Lemma slice_app_inv_NoDup_l l a k l1 l2 :
-    NoDup l →
-    slice l a k = l1 ++ l2 →
-    l1 = slice l a (length l1).
-  Admitted.
-
-  Lemma slice_app_inv l l' a k k' :
-    slice l a k' ++ l' = slice l a k →
-    l' = slice l (a + k') (length l').
-  Admitted.
-
-  Lemma slice_middle l l1 l' l2 :
-    l = l1 ++ l' ++ l2 →
-    l' = slice l (length l1) (length l').
-  Admitted.
-
-  Definition sublist l' l : Prop :=
-    ∃ l1 l2, l = l1 ++ l' ++ l2.
-
-  Lemma sublist_length l' l :
-    sublist l' l →
-    length l' ≤ length l.
-  Admitted.
-
-  Lemma sublist_slice l' l :
-    sublist l' l →
-    ∃ a, a + length l' ≤ length l ∧ l' = slice l a (length l').
-  Admitted.
-
-  (* Lemma slice_app_sublist_NoDup l a1 k1 a2 k2 :
-    NoDup l →
+    a + k ≤ length l →
     a1 + k1 ≤ length l →
     a2 + k2 ≤ length l →
     0 < k1 →
     0 < k2 →
-    sublist (slice l a1 k1 ++ slice l a2 k2) l →
-    a2 = a1 + k1 ∧ a1 + k1 + k2 ≤ length l.
+    slice l a k = slice l a1 k1 ++ slice l a2 k2 →
+    a1 = a ∧ a2 = a1 + k1 ∧ k1 + k2 = k.
   Proof.
-    intros Hnd ? ? ? ? Hsub.
-    apply sublist_slice in Hsub as [a Ha].
-    rewrite app_length !slice_length in Ha.
-    destruct Ha as [? Ha].
-    have :
-        (slice l a1 k1 ++ slice l a2 k2) !! k1 = slice l a (k1 + k2) !! k1
-      by rewrite Ha.
-    rewrite lookup_app_r ?slice_length ?slice_lookup //.
-    rewrite Nat.sub_diag Nat.add_0_r. intros Heq1.
-    apply NoDup_lookup_in_range in Heq1 => //; [|lia..].
-    have ? : a2 = a1 + k1.
-    { have :
-        (slice l a1 k1 ++ slice l a2 k2) !! 0 = slice l a (k1 + k2) !! 0
-      by rewrite Ha.
-      rewrite lookup_app_l ?slice_length ?slice_lookup; first lia.
-      rewrite !Nat.add_0_r. intros Heq2.
-      apply NoDup_lookup_in_range in Heq2 => //; [|lia..].
-      lia.
-    }
-    split; lia.
-  Qed. *)
+    intros ? ? ? ? ? ? Heq.
+    have ? : k = k1 + k2.
+    { apply (f_equal length) in Heq. rewrite app_length !slice_length in Heq => //. }
+    subst.
+    have ? : a1 = a.
+    { apply (f_equal (lookup 0)) in Heq.
+      rewrite lookup_app_l in Heq; first by rewrite slice_length //.
+      rewrite !slice_lookup ?Nat.add_0_r in Heq; [lia..|].
+      eapply NoDup_lookup_in_range; eauto; lia. }
+    subst.
+    have ? : a2 = a + k1.
+    { apply (f_equal (lookup k1)) in Heq.
+      rewrite lookup_app_r in Heq; first by rewrite slice_length.
+      rewrite !slice_lookup ?slice_length ?Nat.sub_diag ?Nat.add_0_r in Heq; [lia..|].
+      eapply NoDup_lookup_in_range; eauto; lia. }
+    naive_solver.
+  Qed.
 
-  Lemma nonempty_sublist_unique_NoDup l' l :
-    NoDup l →
-    l' ≠ [] →
-    sublist l' l →
-    exists! a, l' = slice l a (length l').
+  Ltac normalize_app_assoc :=
+    repeat match goal with
+    | [ |- context [ (?l1 ++ ?l2) ++ ?l3 ] ] => rewrite -app_assoc
+    end.
+
+  Definition sublist l' l : Prop :=
+    ∃ l1 l2, l = l1 ++ l' ++ l2.
+
+  Lemma sublist_app_l l l1 l2 :
+    sublist (l1 ++ l2) l → sublist l1 l.
   Proof.
-    intros Hnd Hne [l1 [l2 Hl]].
-    apply slice_middle in Hl.
-    exists (length l1). split; first done.
-    intros a Hl'.
-    destruct l' as [|x l']; first done.
-    apply slice_cons_Some in Hl.
-    apply slice_cons_Some in Hl'.
-    eapply NoDup_lookup; eauto.
+    intros [lp [ls Hl]]. exists lp, (l2 ++ ls).
+    revert Hl. by normalize_app_assoc.
+  Qed.
+  
+  Lemma sublist_app_r l l1 l2 :
+    sublist (l1 ++ l2) l → sublist l2 l.
+  Proof.
+    intros [lp [ls Hl]]. exists (lp ++ l1), ls.
+    revert Hl. by normalize_app_assoc.
+  Qed.
+
+  Lemma sublist_slice l' l :
+    sublist l' l →
+    ∃ a, a + length l' ≤ length l ∧ l' = slice l a (length l').
+  Proof.
+    intros [l1 [l2 ->]]. exists (length l1). split.
+    - rewrite !app_length. lia.
+    - by rewrite /slice drop_app take_app.
+  Qed.
+
+  Lemma sublist_app_slice_NoDup l l1 l2 :
+    NoDup l →
+    sublist (l1 ++ l2) l →
+    0 < length l1 →
+    0 < length l2 →
+    ∃ a, a + length l1 + length l2 ≤ length l ∧
+      l1 = slice l a (length l1) ∧ l2 = slice l (a + length l1) (length l2).
+  Proof.
+    intros ? Hl ? ?.
+    have Hl1 : sublist l1 l by eapply sublist_app_l; eauto.
+    apply sublist_slice in Hl1 as [a1 [? Hl1]].
+    have Hl2 : sublist l2 l by eapply sublist_app_r; eauto.
+    apply sublist_slice in Hl2 as [a2 [? Hl2]].
+    apply sublist_slice in Hl as [a [Hlen Hl]].
+    rewrite app_length in Hlen.
+    symmetry in Hl. rewrite Hl1 Hl2 in Hl.
+    rewrite app_length !slice_length in Hl => //.
+    apply slice_app_inv_NoDup_aux in Hl => //.
+    naive_solver.
+  Qed.
+
+  Lemma slice_sublist l a k :
+    a + k ≤ length l → sublist (slice l a k) l.
+  Proof.
+    intros. exists (slice l 0 a), (slice l (a + k) (length l - a - k)).
+    rewrite !slice_app_1.
+    have -> : a + (k + (length l - a - k)) = length l by lia.
+    by rewrite slice_full.
+  Qed.
+
+  Lemma slice_app_inv_NoDup l a k l1 l2 :
+    NoDup l →
+    a + k ≤ length l →
+    slice l a k = l1 ++ l2 →
+    l1 = slice l a (length l1) ∧ l2 = slice l (a + length l1) (k - length l1).
+  Proof.
+    intros ? ? Hl.
+    have Hsub : sublist (l1 ++ l2) l. { rewrite -Hl. by apply slice_sublist. }
+    destruct l1 as [|x1 l1]; last destruct l2 as [|x2 l2].
+    - rewrite app_nil_l in Hl. rewrite slice_nil Nat.add_0_r Nat.sub_0_r //.
+    - rewrite app_nil_r in Hl.
+      have ? : k = length (x1 :: l1) by rewrite -Hl slice_length.
+      subst. rewrite Nat.sub_diag slice_nil //.
+    - apply sublist_app_slice_NoDup in Hsub as [a' [Hlen [Hl1 Hl2]]] => //.
+      2,3: rewrite cons_length; lia.
+      rewrite Hl1 Hl2 in Hl. rewrite cons_length in Hlen.
+      apply slice_app_inv_NoDup_aux in Hl as [? [? ?]] => //.
+      2-4: rewrite cons_length; lia.
+      have -> : k - length (x1 :: l1) = length (x2 :: l2) by lia.
+      naive_solver.
   Qed.
 
 End slice.

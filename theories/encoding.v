@@ -126,12 +126,15 @@ Section encoding.
     setoid_rewrite decode_encode.
     repeat apply ZifyClasses.or_morph.
     - rewrite slice_nil_iff; lia.
-    - setoid_rewrite slice_singleton_iff. split.
-      + intros [a [p [[? Hw] ?]]]. exists a. repeat split => //=. by rewrite Hw.
+    - split.
+      + intros [a [p [Hw ?]]]. exists a.
+        apply slice_singleton_iff in Hw as [-> Hw] => //.
+       repeat split => //=. by rewrite Hw.
       + intros [a [? [? Hw]]].
         have [? Hx] : is_Some (w !! x) by apply lookup_lt_is_Some; lia.
         simpl in Hw. rewrite Hx in Hw. case_match; subst.
-        exists a. eexists. repeat split; eauto.
+        exists a. eexists. rewrite slice_singleton_iff //.
+        repeat split; eauto.
     - done.
     - split.
       + intros [Bl [Br [φ [? [w1 [w2 [Hw [Hφ [HBl HBr]]]]]]]]].
@@ -142,9 +145,9 @@ Section encoding.
         * left. rewrite app_nil_l in Hw. by rewrite Hw.
         * right; left. rewrite app_nil_r in Hw. by rewrite Hw.
         * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2] => //.
-          rewrite Hw1 in HBl, Hφ. rewrite Hw2 in HBr, Hφ.
           rewrite app_length !cons_length in Hl.
-          exists (length (tk1 :: w1)). repeat split => //. all: rewrite cons_length; lia.
+          exists (length (tk1 :: w1)). rewrite -Hw1 -Hw2.
+          repeat split => //. all: rewrite cons_length; lia.
       + intros [Bl [Br [φ [? [Hd|[Hd|Hd]]]]]].
         * destruct Hd as [? ?].
           exists Bl, Br, φ. split; first done.
@@ -195,9 +198,15 @@ Section encoding.
     rewrite -derivation_spec -check_derive_spec /check_derive. setoid_rewrite derivation_spec.
     repeat apply ZifyClasses.or_morph.
     - rewrite slice_nil_iff ?decode_length; lia.
-    - setoid_rewrite slice_singleton_iff.
-      rewrite decode_lookup; first lia.
-      naive_solver.
+    - split.
+      + intros [a [? [-> ?]]]. exists a, (line m x, col m x).
+        rewrite slice_singleton_iff ?decode_length //.
+        rewrite decode_lookup; [lia|].
+        naive_solver.
+      + intros [a [p [Hw ?]]]. exists a.
+        apply slice_singleton_iff in Hw as [-> Hw]; last by rewrite decode_length.
+        rewrite decode_lookup in Hw; [lia|].
+        naive_solver.
     - split.
       + intros [B [φ [? [? ?]]]]. exists B, φ.
         repeat split => //. apply IHA => //. eapply succ_unary; eauto.
@@ -218,7 +227,7 @@ Section encoding.
         * destruct Hd as [δ' [? [? [? ?]]]].
           exists Bl, Br, φ. split; first done.
           do 2 eexists. repeat split; eauto.
-          1: by rewrite -slice_split.
+          1: rewrite -slice_split; [lia | done].
           all: apply IHδ => //; lia.
       + intros [Bl [Br [φ [? [w1 [w2 [Hw [Hφ [HBl HBr]]]]]]]]].
         have Hl : length (w1 ++ w2) = δ.
@@ -230,6 +239,7 @@ Section encoding.
         * right; left. rewrite app_nil_r in Hw. split => //.
           apply IHA => //. eapply succ_left; eauto. by rewrite Hw.
         * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2] => //.
+          2: rewrite decode_length //.
           rewrite Hw1 in HBl, Hφ. rewrite Hw2 in HBr, Hφ.
           rewrite app_length !cons_length in Hl.
           exists (length (tk1 :: w1)). repeat split => //.
@@ -278,35 +288,27 @@ Section encoding.
     setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
     setoid_rewrite decode_encode.
     repeat apply ZifyClasses.or_morph.
-    - rewrite slice_full_iff; try lia. done. admit.
+    - rewrite slice_full_iff //. apply list_nonempty_length; lia.
     - by setoid_rewrite bool_decide_eq_true.
     - split.
       + intros [A [B' [φ [wr [? [Hr [? ?]]]]]]].
         exists A, B', φ, (length wr).
         rewrite bool_decide_eq_true. destruct wr as [|tk l].
-        * rewrite /= slice_nil ?Nat.add_0_r; [lia|].
+        * rewrite /= slice_nil !Nat.add_0_r.
           rewrite app_nil_r in Hr.
           repeat split => //.
         * case_bool_decide => //. rewrite bool_decide_eq_true.
           have Hsub : sublist (slice w x δ ++ tk :: l) w by eapply reachable_sublist; eauto.
-          apply sublist_slice in Hsub as [x' [? Hw']].
-          rewrite app_length slice_length in Hw'; [lia|]. symmetry in Hw'.
-          apply slice_app_inv_NoDup in Hw' as [Hwl Hwr] => //.
-          2: { apply list_nonempty_length. rewrite slice_length; lia. }
-          apply slice_eq_inv_NoDup in Hwl as [? _] => //.
-          2: { apply list_nonempty_length. lia. } subst.
-          rewrite slice_length in Hwr; first done.
-          have Htmp : δ + length (tk :: l) - δ = length (tk :: l) by lia.
-          rewrite Htmp in Hwr.
-          symmetry in Hwr. rewrite slice_app Hwr.
-          have HA : slice w (x + δ) (length (tk :: l)) ≠ [].
-          { rewrite Hwr. naive_solver. }
-          apply slice_nonempty_iff in HA.
-          repeat split => //. admit. admit.
+          apply sublist_app_slice_NoDup in Hsub as [x' [Hlen [Hx' Hl]]];
+            [| eauto | rewrite slice_length; lia | lia].
+          rewrite slice_length in Hlen => //.
+          apply slice_eq_inv_NoDup in Hx' as [? Hδ] => //; [|rewrite slice_length; lia..].
+          subst. rewrite Hδ in Hl. rewrite -slice_app_1 -Hl.
+          repeat split => //.
       + intros [A [B' [φ [δ' [? [? [Hr [Hd Hφ]]]]]]]].
         apply bool_decide_eq_true in Hr.
         exists A, B', φ, (slice w (x + δ) δ').
-        rewrite slice_app_merge_2.
+        rewrite slice_app_1.
         repeat split => //.
         case_bool_decide; [by subst | by apply bool_decide_eq_true in Hd].
     - (* same as above *) admit.
@@ -392,12 +394,12 @@ Section encoding.
         eapply succ_left; eauto.
       * eapply reachable_from_left; eauto.
         2: eapply Φ_derive_spec; eauto; lia.
-        rewrite slice_app_merge_2. apply IHδ => //; lia.
+        rewrite slice_app_1. apply IHδ => //; lia.
     - destruct Hr as [A [B' [φ [δ' [? [? [Hr [? ?]]]]]]]].
       case_bool_decide; subst; eapply reachable_from_right; eauto.
       * rewrite Nat.sub_0_r Nat.add_0_l in Hr. rewrite app_nil_l.
         apply IHB => //. eapply succ_right; eauto.
-      * rewrite slice_merge_2. apply IHδ => //; lia.
+      * rewrite slice_app_2 //. apply IHδ => //; lia.
       * eapply Φ_derive_spec; eauto; lia.
   Qed.
 
@@ -497,8 +499,7 @@ Section encoding.
       erewrite slice_singleton; last by rewrite decode_lookup; [lia|eauto].
       rewrite Hx. split; first done. by apply witness_atom.
     - unfold derive. case_bool_decide.
-      + subst. rewrite slice_nil ?decode_length; [lia|].
-        split.
+      + subst. rewrite slice_nil. split.
         * intros [t [? [? ?]]]. exists t.
           rewrite witness_unary; eauto. repeat split => //. apply apply_unary_nil.
         * intros [t [? Ht]]. eapply witness_unary in Ht; eauto. naive_solver.
@@ -510,21 +511,20 @@ Section encoding.
         * intros [t [? Ht]]. eapply witness_unary in Ht; eauto. naive_solver.
     - destruct Hψ as [Hψ ?]. unfold derive. rewrite Φ_apply₂_spec. repeat case_bool_decide.
       + have -> : δ = 0 by lia.
-        have -> : slice (decode m k) x 0 = [] ++ [] by rewrite slice_nil ?decode_length; [lia|].
-        have -> : δ' = 0 by lia. rewrite slice_nil ?decode_length; [lia|].
-        split.
+        have -> : slice (decode m k) x 0 = [] ++ [] by rewrite slice_nil.
+        have -> : δ' = 0 by lia. rewrite slice_nil. split.
         * intros [[t1 [? [? ?]]] [[t2 [? [? ?]]] ?]]. exists t1, t2.
           rewrite witness_binary; eauto. repeat split => //.
         * intros [t1 [t2 [? [? [? Ht]]]]]. eapply witness_binary in Ht; eauto. naive_solver.
       + have -> : slice (decode m k) x δ = [] ++ slice (decode m k) x δ by rewrite app_nil_l.
-        subst. rewrite Nat.add_0_r Nat.sub_0_r slice_nil ?decode_length; [lia|].
+        subst. rewrite Nat.add_0_r Nat.sub_0_r slice_nil.
         rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
         split.
         * intros [[t1 [? [? ?]]] [[t2 [? [? ?]]] ?]]. exists t1, t2.
           rewrite witness_binary; eauto. repeat split => //.
         * intros [t1 [t2 [? [? [? Ht]]]]]. eapply witness_binary in Ht; eauto. naive_solver.
       + have -> : slice (decode m k) x δ = slice (decode m k) x δ ++ [] by rewrite app_nil_r.
-        have -> : δ' = δ by lia. rewrite Nat.sub_diag slice_nil ?decode_length; [lia|].
+        have -> : δ' = δ by lia. rewrite Nat.sub_diag slice_nil.
         rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
         split.
         * intros [[t1 [? [? ?]]] [[t2 [? [? ?]]] ?]]. exists t1, t2.
@@ -615,7 +615,7 @@ Section encoding.
       | [ H : [] = slice (decode _ _) _ ?δ |- ?δ = 0 ∧ _ ] =>
         rewrite -H; symmetry in H; apply slice_nil_iff in H; [|by rewrite decode_length]; split; first done
       | [ H : [_] = slice (decode _ _) _ ?δ |- ?δ = 1 ∧ _ = term _ _ ∧ _ ] =>
-        rewrite -H; symmetry in H; apply slice_singleton_iff in H;
+        rewrite -H; symmetry in H; apply slice_singleton_iff in H; [|by rewrite decode_length];
         let H' := fresh in destruct H as [-> H']; rewrite decode_lookup in H'; [lia|];
         inversion H'; subst; clear H'; do 2 (split; first done)
       | [ |- ∃ t, root t = root ?t' ∧ _ ] =>
@@ -623,7 +623,7 @@ Section encoding.
       | [ |- ∃ t1 t2, root t1 = root ?t1' ∧ root t2 = root ?t2' ∧ _ ] =>
         exists t1', t2'; do 2 (split; first done)
       | [ |- word ?t = slice (decode _ _) _ _ ∧ _ ] =>
-        split; first by eapply slice_app_inv_NoDup_l; eauto
+        split; first by (eapply slice_app_inv_NoDup; eauto; rewrite decode_length; lia)
       end.
   Admitted.
 
