@@ -1,6 +1,11 @@
 From stdpp Require Import list.
 From Coq Require Import ssreflect.
 
+Ltac normalize_app_assoc :=
+  repeat match goal with
+  | [ |- context [ (?l1 ++ ?l2) ++ ?l3 ] ] => rewrite -app_assoc
+  end.
+
 Section slice.
   Context {A : Type}.
   Implicit Type l : list A.
@@ -172,11 +177,6 @@ Section slice.
       eapply NoDup_lookup_in_range; eauto; lia. }
     naive_solver.
   Qed.
-
-  Ltac normalize_app_assoc :=
-    repeat match goal with
-    | [ |- context [ (?l1 ++ ?l2) ++ ?l3 ] ] => rewrite -app_assoc
-    end.
 
   Definition sublist l' l : Prop :=
     ∃ l1 l2, l = l1 ++ l' ++ l2.

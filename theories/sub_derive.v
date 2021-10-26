@@ -190,8 +190,8 @@ Section sub_derive.
       apply step_sub in Hst as [v1 [v4 ->]].
       destruct IHst as [v2 [v3 ->]].
       exists (v1 ++ v2), (v3 ++ v4).
-      (* by assoc *)
-  Admitted.
+      by normalize_app_assoc.
+  Qed.
 
   Lemma reachable_sublist A w B v :
     (A, w) →∗ (B, v) → sublist v w.

@@ -510,7 +510,7 @@ Section encoding.
         exists δ'. split => //. apply Nat.le_lteq in Hδ' as [?|?]; apply elem_of_app; by
           [left; apply index_range_elem_of | right; apply elem_of_list_singleton].
   Qed.
-
+  
   Definition Φ_using_derive ψ x δ : formula :=
     match ψ with
     | using_ε => λ k m, δ = 0
@@ -547,43 +547,38 @@ Section encoding.
       rewrite Hx. split; first done. by apply witness_atom.
     - unfold derive. case_bool_decide.
       + subst. rewrite slice_nil. split.
-        * intros [t [? [? ?]]]. exists t.
+        * intros [t [? [? ?]]]. subst. exists t.
           rewrite witness_unary; eauto. repeat split => //. apply apply_unary_nil.
-        * intros [t [? Ht]]. eapply witness_unary in Ht; eauto. naive_solver.
+        * intros [t [? Ht]]. subst. eapply witness_unary in Ht; eauto. naive_solver.
       + rewrite Φ_apply₁_spec.
         rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
         split.
-        * intros [? [t [? [? ?]]]]. exists t.
+        * intros [? [t [? [? ?]]]]. subst. exists t.
           rewrite witness_unary; eauto. repeat split => //.
-        * intros [t [? Ht]]. eapply witness_unary in Ht; eauto. naive_solver.
+        * intros [t [? Ht]]. subst. eapply witness_unary in Ht; eauto. naive_solver.
     - destruct Hψ as [Hψ ?]. unfold derive. rewrite Φ_apply₂_spec. repeat case_bool_decide.
+      Ltac finish := split;
+        [ intros [[t1 [? [Hw1 ?]]] [[t2 [? [? ?]]] ?]]; subst; exists t1, t2;
+          rewrite -{2}Hw1 witness_binary ?Hw1; eauto; repeat split => //
+        | intros [t1 [t2 [? [? [Hw1 Ht]]]]]; subst;
+          rewrite -{1}Hw1 in Ht; eapply witness_binary in Ht; eauto; rewrite Hw1 in Ht; naive_solver 
+        ].
       + have -> : δ = 0 by lia.
         have -> : slice (decode m k) x 0 = [] ++ [] by rewrite slice_nil.
-        have -> : δ' = 0 by lia. rewrite slice_nil. split.
-        * intros [[t1 [? [? ?]]] [[t2 [? [? ?]]] ?]]. exists t1, t2.
-          rewrite witness_binary; eauto. repeat split => //.
-        * intros [t1 [t2 [? [? [? Ht]]]]]. eapply witness_binary in Ht; eauto. naive_solver.
+        have -> : δ' = 0 by lia. rewrite slice_nil.
+        finish.
       + have -> : slice (decode m k) x δ = [] ++ slice (decode m k) x δ by rewrite app_nil_l.
         subst. rewrite Nat.add_0_r Nat.sub_0_r slice_nil.
         rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
-        split.
-        * intros [[t1 [? [? ?]]] [[t2 [? [? ?]]] ?]]. exists t1, t2.
-          rewrite witness_binary; eauto. repeat split => //.
-        * intros [t1 [t2 [? [? [? Ht]]]]]. eapply witness_binary in Ht; eauto. naive_solver.
+        finish.
       + have -> : slice (decode m k) x δ = slice (decode m k) x δ ++ [] by rewrite app_nil_r.
         have -> : δ' = δ by lia. rewrite Nat.sub_diag slice_nil.
         rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
-        split.
-        * intros [[t1 [? [? ?]]] [[t2 [? [? ?]]] ?]]. exists t1, t2.
-          rewrite witness_binary; eauto. repeat split => //.
-        * intros [t1 [t2 [? [? [? Ht]]]]]. eapply witness_binary in Ht; eauto. naive_solver.
+        finish.
       + have -> : slice (decode m k) x δ = slice (decode m k) x δ' ++ slice (decode m k) (x + δ') (δ - δ')
           by rewrite -slice_split.
         rewrite !Φ_derive_spec; eauto; [|lia..]. unfold derive.
-        split.
-        * intros [[t1 [? [? ?]]] [[t2 [? [? ?]]] ?]]. exists t1, t2.
-          rewrite witness_binary; eauto. repeat split => //.
-        * intros [t1 [t2 [? [? [? Ht]]]]]. eapply witness_binary in Ht; eauto. naive_solver.
+        finish.
   Qed.
 
   Definition Φ_multi_usable (A : N) (x δ : nat) : formula := λ k m,
