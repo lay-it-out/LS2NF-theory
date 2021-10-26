@@ -52,7 +52,7 @@ Proof.
 Qed.
 
 (* TODO: merge index_range with nat_range *)
-Fixpoint index_range (n : nat) :=
+Fixpoint index_range (n : nat) : list nat :=
   match n with
   | 0 => []
   | S n' => index_range n' ++ [n']
@@ -66,8 +66,7 @@ Proof.
 Qed.
 
 Lemma index_range_lookup n i :
-  i < n →
-  index_range n !! i = Some i.
+  i < n → index_range n !! i = Some i.
 Proof.
   intros. induction n; first lia.
   simpl. destruct (decide (i = n)) as [->|].
@@ -78,13 +77,15 @@ Proof.
 Qed.
 
 Lemma index_range_elem_of n x :
-  x ∈ index_range n → 0 ≤ x < n.
+  x ∈ index_range n ↔ x < n.
 Proof.
-  intros Hx. apply elem_of_list_lookup in Hx as [i Hi].
-  have ? : i < n.
-  { rewrite <- index_range_length. eapply lookup_lt_Some; eauto. }
-  rewrite index_range_lookup in Hi => //.
-  inversion Hi; subst; clear Hi. lia.
+  rewrite elem_of_list_lookup. split.
+  - intros [i Hi].
+    have ? : i < n.
+    { rewrite <- index_range_length. eapply lookup_lt_Some; eauto. }
+    rewrite index_range_lookup in Hi => //.
+    congruence.
+  - intros ?. exists x. by rewrite index_range_lookup.
 Qed.
 
 Program Fixpoint big_or {A : Type} (l : list A) (P : {x : A & x ∈ l} → bool) : bool :=

@@ -125,6 +125,38 @@ Section grammar.
 
   (* So that one can use notation "A ↦ α ∈ G" *)
 
+  Lemma elem_of_clauses G A α :
+    A ↦ α ∈ G → match α with
+    | ε => lf_ε ∈ lf_clauses G A
+    | atom a => lf_atom a ∈ lf_clauses G A
+    | unary B φ => lf_unary B ∈ lf_clauses G A ∧ φ = unary_clause_predicate G A B
+    | binary Bl Br φ => lf_binary Bl Br ∈ lf_clauses G A ∧ φ = binary_clause_predicate G A Bl Br
+    end.
+  Proof.
+    unfold elem_of, production_elem_of_grammar.
+    rewrite elem_of_list_fmap. intros [? [Heq ?]]. destruct α.
+    all: case_match => //.
+    all: inversion Heq; subst; clear Heq => //.
+  Qed.
+
+  Lemma unary_clause_predicate_unique G A B φ φ' :
+    A ↦ unary B φ ∈ G →
+    A ↦ unary B φ' ∈ G →
+    φ = φ'.
+  Proof.
+    intros Hφ Hφ'. apply elem_of_clauses in Hφ, Hφ'.
+    naive_solver.
+  Qed.
+
+  Lemma binary_clause_predicate_unique G A Bl Br φ φ' :
+    A ↦ binary Bl Br φ ∈ G →
+    A ↦ binary Bl Br φ' ∈ G →
+    φ = φ'.
+  Proof.
+    intros Hφ Hφ'. apply elem_of_clauses in Hφ, Hφ'.
+    naive_solver.
+  Qed.
+
   (* parsing *)
 
   Inductive tree : Type :=
@@ -205,74 +237,12 @@ Section grammar.
 
   Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40).
 
-  (* Fixpoint check_tree_valid G (t : tree Σ N) : bool :=
-    match t with
-    | ε_tree A => bool_decide (A ↦ ε ∈ G)
-    (* | token_tree A tk => atom_productions G A (letter tk)
-    | unary_tree A t' =>
-      match unary_productions G A (root t') with
-      | Some φ => tree_valid G t' && φ (word t')
-      | None => false
-      end
-    | binary_tree A t1 t2 =>
-      match binary_productions G A (root t1) (root t2) with
-      | Some φ => tree_valid G t1 && tree_valid G t2 && φ (word t1) (word t2)
-      | None => false
-      end *)
-    | _ => false
-    end. *)
-(* 
-  Global Instance ParseTree_tree : ParseTree tree := {|
-    root := root;
-    word := word;
-    valid := tree_valid;
-  |}. *)
-
   (* derivation *)
 
   Definition derive G A w : Prop :=
     ∃ t, t ▷ A ={G}=> w.
 
   Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
-
-  (* Lemma derive_ε G A :
-    A ↦ ε ∈ G →
-    G ⊨ A ⇒ [].
-  Proof.
-    intros. exists (ε_tree A).
-    repeat split. by constructor.
-  Qed.
-
-  Lemma derive_atom G A a p :
-    A ↦ atom a ∈ G →
-    G ⊨ A ⇒ [a @ p].
-  Proof.
-    intros. exists (token_tree A (a @ p)).
-    repeat split. by constructor.
-  Qed.
-
-  Lemma derive_unary G A B φ w :
-    A ↦ unary B φ ∈ G →
-    apply₁ φ w = true →
-    G ⊨ B ⇒ w →
-    G ⊨ A ⇒ w.
-  Proof.
-    intros ? ? [t [? [? ?]]]. exists (unary_tree A t).
-    repeat split => //. econstructor; naive_solver.
-  Qed.
-
-  Lemma derive_binary G A Bl Br φ w1 w2 :
-    A ↦ binary Bl Br φ ∈ G →
-    apply₂ φ w1 w2 = true →
-    G ⊨ Bl ⇒ w1 →
-    G ⊨ Br ⇒ w2 →
-    G ⊨ A ⇒ w1 ++ w2.
-  Proof.
-    intros ? ? [t1 [? [? ?]]] [t2 [? [? ?]]].
-    exists (binary_tree A t1 t2).
-    repeat split; try naive_solver.
-    econstructor; naive_solver.
-  Qed. *)
 
   (* nullability *)
 

@@ -105,11 +105,13 @@ Section slice.
     by rewrite slice_app_1.
   Qed.
 
-  (* TODO: same with slice_app_1 *)
-  Lemma slice_app w x δ δ' :
-    slice w x (δ + δ') = slice w x δ ++ slice w (x + δ) δ'.
+  Lemma slice_eq_inv l a k k' :
+    a + k ≤ length l →
+    a + k' ≤ length l →
+    slice l a k = slice l a k' → k' = k.
   Proof.
-    by rewrite slice_app_1.
+    intros ? ? Heq.
+    apply (f_equal length) in Heq. rewrite !slice_length in Heq => //.
   Qed.
 
   Lemma NoDup_lookup_in_range l i j :

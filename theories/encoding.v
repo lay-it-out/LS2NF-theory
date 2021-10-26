@@ -160,26 +160,19 @@ Section encoding.
         * destruct Hd as [δ' [? [? [? ?]]]].
           exists Bl, Br, φ. split; first done.
           exists (slice w x δ'), (slice w (x + δ') (δ - δ')).
-          rewrite -slice_app. have -> : δ' + (δ - δ') = δ by lia.
+          rewrite slice_app_1. have -> : δ' + (δ - δ') = δ by lia.
           repeat split => //.
   Qed.
 
-  (* Notation "⟨ x , y ⟩" := (existT x y). *)
-
   Lemma list_nonempty_length {A} (l : list A) :
     l ≠ [] ↔ 0 < length l.
-  Admitted.
-
-  (* TODO: since the encoding has a similar shape to the proof rules for G ⊨ A ⇒ w, 
-     we can define those proof rules first using `Inductive`, and then a first-order logic
-     proposition using disjunction, and show they are equiv to the original definition.
-
-     In this way, it suffices to show two propositions both using disjunction, but one is using
-     `can_derive` and the other `_ ⊨ _ ⇒ _`, are equiv.
-
-     This approach will also simplifies the proof for `Φ_derive k (model_slice _ w)`, given that
-     all `can_derive` is defined as `bool_decide (_ ⊨ _ ⇒ _)`.
-  *)
+  Proof.
+    have -> : 0 < length l ↔ 0 ≠ length l by split; [apply lt_0_neq | apply neq_0_lt].
+    apply not_iff_compat.
+    have ? := length_zero_iff_nil.
+    naive_solver.
+  Qed.
+  
   Lemma Φ_derive_spec k m :
     Φ_derive k m →
     ∀ A x δ, 0 < δ → x + δ ≤ k →
@@ -311,8 +304,28 @@ Section encoding.
         rewrite slice_app_1.
         repeat split => //.
         case_bool_decide; [by subst | by apply bool_decide_eq_true in Hd].
-    - (* same as above *) admit.
-  Admitted.
+    - split.
+      + intros [A [B' [φ [wl [? [Hr [? ?]]]]]]].
+        exists A, B', φ, (length wl).
+        rewrite bool_decide_eq_true. destruct wl as [|tk l].
+        * rewrite /= slice_nil !Nat.sub_0_r.
+          rewrite app_nil_l in Hr.
+          repeat split => //. lia.
+        * case_bool_decide => //. rewrite bool_decide_eq_true.
+          have Hsub : sublist ((tk :: l) ++ slice w x δ) w by eapply reachable_sublist; eauto.
+          apply sublist_app_slice_NoDup in Hsub as [x' [Hlen [Hx' Hl]]];
+            [| eauto | rewrite cons_length; lia | rewrite slice_length; lia].
+          rewrite slice_length in Hlen => //. rewrite slice_length in Hl => //.
+          apply slice_eq_inv_NoDup in Hl as [? Hδ] => //; [|rewrite slice_length; lia..].
+          subst. rewrite Nat.add_sub -slice_app_1 -Hx'.
+          repeat split => //. lia.
+      + intros [A [B' [φ [δ' [? [? [Hr [Hd Hφ]]]]]]]].
+        apply bool_decide_eq_true in Hr.
+        exists A, B', φ, (slice w (x - δ') δ').
+        rewrite slice_app_2; [lia|].
+        repeat split => //.
+        case_bool_decide; [by subst | by apply bool_decide_eq_true in Hd].
+  Qed.
 
   Lemma apply_unary_nil (φ : unary_predicate Σ) :
     apply₁ φ [] = true.
@@ -352,8 +365,23 @@ Section encoding.
         * destruct Hr as [x [δ [? [? [? ?]]]]].
           exists A, B', φ, (slice w x δ).
           repeat split => //.
-    - (* same as above *) admit.
-  Admitted.
+    - setoid_rewrite apply_binary_nil_r.
+      setoid_rewrite app_nil_r. split.
+      + intros [A [B' [φ [w' [? [Hr [? ?]]]]]]].
+        exists A, B', φ. split; first done.
+        destruct w' as [|t w']; [by left | right].
+        have Hsub : sublist (t :: w') w by eapply reachable_sublist; eauto.
+        apply sublist_slice in Hsub as [a [? Hw]].
+        exists a, (length (t :: w')).
+        rewrite -Hw. repeat split => //. rewrite cons_length; lia.
+      + intros [A [B' [φ [? [Hr|Hr]]]]].
+        * destruct Hr as [? ?].
+          exists A, B', φ, [].
+          repeat split => //.
+        * destruct Hr as [x [δ [? [? [? ?]]]]].
+          exists A, B', φ, (slice w x δ).
+          repeat split => //.
+  Qed.
 
   Lemma Φ_reach_sat k X w :
     length w = k →
@@ -448,12 +476,12 @@ Section encoding.
   .
 
   Definition usable_clauses A δ : list using_clause :=
-    flat_map (λ α, match α with
+    clauses G A ≫= (λ α, match α with
     | ε => [using_ε]
     | atom a => [using_atom a]
     | unary B φ => [using_unary B φ]
     | binary Bl Br φ => (λ δ', using_binary Bl Br φ δ') <$> (index_range δ ++ [δ])
-    end) (clauses G A).
+    end).
 
   Lemma elem_of_usable_clauses ψ A δ :
     ψ ∈ usable_clauses A δ ↔ match ψ with
@@ -462,7 +490,26 @@ Section encoding.
     | using_unary B φ => A ↦ unary B φ ∈ G
     | using_binary Bl Br φ δ' => A ↦ binary Bl Br φ ∈ G ∧ δ' ≤ δ
     end.
-  Admitted.
+  Proof.
+    rewrite /usable_clauses elem_of_list_bind. split.
+    - (* -> *)
+      intros [α [Hin ?]]. repeat case_match => //.
+      all: repeat match goal with
+      | [H : _ ∈ [_] |- _ ] => apply elem_of_list_singleton in H; inversion H; subst; clear H
+      | [H : _ ∈ _ <$> _ |- _ ] => apply elem_of_list_fmap in H as [x [H Hx]]; inversion H; subst; clear H
+      end => //.
+      split => //. apply elem_of_app in Hx as [|Hx].
+      * suff : x < δ by lia. by apply index_range_elem_of.
+      * suff : x = δ by lia. by apply elem_of_list_singleton in Hx.
+    - (* <- *)
+      destruct ψ as [| a | B φ | Bl Br φ δ'] => Hp.
+      * exists ε. split => //. by apply elem_of_list_singleton.
+      * exists (atom a). split => //. by apply elem_of_list_singleton.
+      * exists (unary B φ). split => //. by apply elem_of_list_singleton.
+      * exists (binary Bl Br φ). destruct Hp as [? Hδ']. split => //. apply elem_of_list_fmap.
+        exists δ'. split => //. apply Nat.le_lteq in Hδ' as [?|?]; apply elem_of_app; by
+          [left; apply index_range_elem_of | right; apply elem_of_list_singleton].
+  Qed.
 
   Definition Φ_using_derive ψ x δ : formula :=
     match ψ with
@@ -553,7 +600,9 @@ Section encoding.
   Lemma app_length_le_l {A} (l1 l2 l : list A) :
     l1 ++ l2 = l →
     length l1 ≤ length l.
-  Admitted.
+  Proof.
+    intros Hl. apply (f_equal length) in Hl. rewrite app_length in Hl. lia.
+  Qed.
 
   Lemma Φ_multi_usable_spec k m x δ A :
     Φ_derive k m →
@@ -569,15 +618,22 @@ Section encoding.
       repeat case_match.
       all: apply elem_of_usable_clauses in Hψ1, Hψ2.
       all: repeat match goal with
-      | [ H : _ ∧ _ |- _ ] => destruct H as [? ?]
-      | [ H : ∃ _, _ |- _ ] => destruct H as [? ?]
+      | [ H : _ ∧ _ |- _ ] => destruct H as [? H]
+      | [ H : ∃ _, _ |- _ ] => destruct H as [? H]
       end.
       all: simpl in *; try congruence.
       all: repeat match goal with
       | [ H : ?t ▷ ?A ={?G}=> ?w |- ∃ t, t ▷ ?A ={?G}=> ?w ∧ _ ] =>
         exists t; split; [by apply H|]; clear H
       end => //.
-      admit. admit.
+      * simpl. intros Heq. subst. rewrite Heq in Hψ2.
+        eapply unary_clause_predicate_unique in Hψ1; [|exact Hψ2].
+        congruence.
+      * simpl. intros [Heq1 [Heq2 ?]]. subst. rewrite Heq1 Heq2 in H3.
+        eapply binary_clause_predicate_unique in H3; [|exact H4].
+        have Heq : slice (decode m k) x n4 = slice (decode m k) x n1 by congruence.
+        apply slice_eq_inv in Heq => //. 2-3: rewrite decode_length; lia.
+        congruence.
     - (* <- *)
       intros [t1 [[? [? Ht1]] [t2 [[? [? Ht2]] ?]]]].
       destruct t1; destruct t2.
@@ -625,7 +681,7 @@ Section encoding.
       | [ |- word ?t = slice (decode _ _) _ _ ∧ _ ] =>
         split; first by (eapply slice_app_inv_NoDup; eauto; rewrite decode_length; lia)
       end.
-  Admitted.
+  Qed.
 
   (* Main theorems *)
 
