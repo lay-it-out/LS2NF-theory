@@ -246,12 +246,10 @@ Section grammar.
 
   (* nullability *)
 
-  Definition nullable G (A : N) : bool.
-  Admitted.
+  Parameter nullable : grammar → N → bool.
 
-  Fact nullable_spec G A :
+  Axiom nullable_spec : ∀ G A,
     nullable G A = true ↔ G ⊨ A ⇒ [].
-  Admitted.
 
   Global Instance nullable_dec G A : Decision (G ⊨ A ⇒ []).
   Proof.

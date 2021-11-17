@@ -32,13 +32,11 @@ Section acyclic.
   Definition acyclic G : Prop :=
     ¬ ∃ A, ex_loop (succ G) A.
 
-  Fact acyclic_succ_flip_wf G :
+  Axiom acyclic_succ_flip_wf : ∀ G,
     acyclic G → wf (flip (succ G)).
-  Admitted.
 
-  Fact acyclic_succ_wf G :
+  Axiom acyclic_succ_wf : ∀ G,
     acyclic G → wf (succ G).
-  Admitted.
 
 End acyclic.
 
