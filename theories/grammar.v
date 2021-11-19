@@ -244,7 +244,7 @@ Section grammar.
 
   Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
 
-  (* nullability *)
+  (* nullability is decidable *)
 
   Parameter nullable : grammar → N → bool.
 

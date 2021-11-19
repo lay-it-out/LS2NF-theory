@@ -14,9 +14,9 @@ Section encoding.
     line : nat → nat;
     col : nat → nat;
     line_col i := (line i, col i);
-    can_derive : N → nat (* start (inclusive) *) → nat (* length, positive *) → bool;
-    can_reach_from : N → nat (* start (inclusive) *) → nat (* length, positive *) → bool;
-    ε_can_reach_from : N → bool;
+    can_derive : N → nat (* start (inclusive) *) → nat (* length, positive *) → Prop;
+    can_reach_from : N → nat (* start (inclusive) *) → nat (* length, positive *) → Prop;
+    ε_can_reach_from : N → Prop;
   }.
 
   (* decode *)
@@ -36,16 +36,6 @@ Section encoding.
     intros. rewrite list_lookup_fmap index_range_lookup //.
   Qed.
 
-  (* encode *)
-
-  Global Instance acyclic_derive_dec A w :
-    Decision (G ⊨ A ⇒ w).
-  Admitted.
-
-  Global Instance acyclic_reachable_dec A w B h :
-    Decision (reachable G (A, w) (B, h)).
-  Admitted.
-
   Definition encode S (w : sentence Σ) : model := {|
     term i :=
       match w !! i with
@@ -62,9 +52,9 @@ Section encoding.
       | Some (_ @ (_, y)) => y
       | None => 0
       end;
-    can_derive A x δ := bool_decide (G ⊨ A ⇒ slice w x δ);
-    can_reach_from A x δ := bool_decide (reachable G (S, w) (A, slice w x δ));
-    ε_can_reach_from A := bool_decide (reachable G (S, w) (A, []));
+    can_derive A x δ := (G ⊨ A ⇒ slice w x δ);
+    can_reach_from A x δ := (reachable G (S, w) (A, slice w x δ));
+    ε_can_reach_from A := (reachable G (S, w) (A, []));
   |}.
 
   Lemma decode_encode S w :
@@ -102,15 +92,15 @@ Section encoding.
 
   Definition Φ_derive : formula := λ k m,
     ∀ A x δ, 0 < δ (* nonempty *) → x + δ ≤ k →
-      can_derive m A x δ = true ↔ (
+      can_derive m A x δ ↔ (
         False ∨
         (∃ a, A ↦ atom a ∈ G ∧ δ = 1 ∧ term m x = a) ∨
-        (∃ B φ, A ↦ unary B φ ∈ G ∧ Φ_apply₁ φ x δ k m ∧ can_derive m B x δ = true) ∨
+        (∃ B φ, A ↦ unary B φ ∈ G ∧ Φ_apply₁ φ x δ k m ∧ can_derive m B x δ) ∨
         (∃ Bl Br φ, A ↦ binary Bl Br φ ∈ G ∧ (
-          (G ⊨ Bl ⇒ [] ∧ can_derive m Br x δ = true) ∨
-          (G ⊨ Br ⇒ [] ∧ can_derive m Bl x δ = true) ∨
+          (G ⊨ Bl ⇒ [] ∧ can_derive m Br x δ) ∨
+          (G ⊨ Br ⇒ [] ∧ can_derive m Bl x δ) ∨
           (∃ δ', 0 < δ' < δ ∧
-            can_derive m Bl x δ' = true ∧ can_derive m Br (x + δ') (δ - δ') = true ∧
+            can_derive m Bl x δ' ∧ can_derive m Br (x + δ') (δ - δ') ∧
             Φ_apply₂ φ x δ' (x + δ') (δ - δ') k m)
         ))
       ).
@@ -119,9 +109,11 @@ Section encoding.
     Φ_derive (length w) (encode X w).
   Proof.
     intros A x δ ? ?.
-    rewrite bool_decide_eq_true -derivation_spec -check_derive_spec.
+    have Heq : can_derive (encode X w) A x δ ↔ check_derive G A (slice w x δ).
+    { rewrite check_derive_spec derivation_spec //. }
+    rewrite Heq.
     unfold check_derive. setoid_rewrite derivation_spec.
-    simpl can_derive. setoid_rewrite bool_decide_eq_true.
+    simpl can_derive.
     setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
     setoid_rewrite decode_encode.
     repeat apply ZifyClasses.or_morph.
@@ -176,7 +168,7 @@ Section encoding.
   Lemma Φ_derive_spec k m :
     Φ_derive k m →
     ∀ A x δ, 0 < δ → x + δ ≤ k →
-      can_derive m A x δ = true ↔ G ⊨ A ⇒ slice (decode m k) x δ.
+      can_derive m A x δ ↔ G ⊨ A ⇒ slice (decode m k) x δ.
   Proof.
     intros HΦ A x δ ? ?.
     (* induction on range length *)
@@ -243,29 +235,29 @@ Section encoding.
   (* encoding reachable from (S, [0..k]) *)
   Definition Φ_reach_nonempty S : formula := λ k m,
     ∀ B x δ, 0 < δ → x + δ ≤ k →
-      can_reach_from m B x δ = true ↔ (
+      can_reach_from m B x δ ↔ (
         (B = S ∧ x = 0 ∧ δ = k) ∨
-        (∃ A φ, A ↦ unary B φ ∈ G ∧ can_reach_from m A x δ = true ∧ Φ_apply₁ φ x δ k m) ∨
-        (∃ A B' φ δ', x + δ + δ' ≤ k ∧ A ↦ binary B B' φ ∈ G ∧ can_reach_from m A x (δ + δ') = true ∧
-          (if bool_decide (δ' = 0) then G ⊨ B' ⇒ [] else can_derive m B' (x + δ) δ' = true) ∧
+        (∃ A φ, A ↦ unary B φ ∈ G ∧ can_reach_from m A x δ ∧ Φ_apply₁ φ x δ k m) ∨
+        (∃ A B' φ δ', x + δ + δ' ≤ k ∧ A ↦ binary B B' φ ∈ G ∧ can_reach_from m A x (δ + δ') ∧
+          (if bool_decide (δ' = 0) then G ⊨ B' ⇒ [] else can_derive m B' (x + δ) δ') ∧
           Φ_apply₂ φ x δ (x + δ) δ' k m) ∨
-        (∃ A B' φ δ', δ' ≤ x ∧ A ↦ binary B' B φ ∈ G ∧ can_reach_from m A (x - δ') (δ' + δ) = true ∧
-          (if bool_decide (δ' = 0) then G ⊨ B' ⇒ [] else can_derive m B' (x - δ') δ' = true) ∧
+        (∃ A B' φ δ', δ' ≤ x ∧ A ↦ binary B' B φ ∈ G ∧ can_reach_from m A (x - δ') (δ' + δ) ∧
+          (if bool_decide (δ' = 0) then G ⊨ B' ⇒ [] else can_derive m B' (x - δ') δ') ∧
           Φ_apply₂ φ (x - δ') δ' x δ k m)
       ).
 
   Definition Φ_reach_empty S : formula := λ k m,
-    ∀ B, ε_can_reach_from m B = true ↔ (
+    ∀ B, ε_can_reach_from m B ↔ (
       (B = S ∧ k = 0) ∨
-      (∃ A φ, A ↦ unary B φ ∈ G ∧ ε_can_reach_from m A = true) ∨
+      (∃ A φ, A ↦ unary B φ ∈ G ∧ ε_can_reach_from m A) ∨
       (∃ A B' φ, A ↦ binary B B' φ ∈ G ∧ (
-        (ε_can_reach_from m A = true ∧ G ⊨ B' ⇒ []) ∨
+        (ε_can_reach_from m A ∧ G ⊨ B' ⇒ []) ∨
         (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧
-          can_reach_from m A x δ = true ∧ can_derive m B' x δ = true))) ∨
+          can_reach_from m A x δ ∧ can_derive m B' x δ))) ∨
       (∃ A B' φ, A ↦ binary B' B φ ∈ G ∧ (
-        (ε_can_reach_from m A = true ∧ G ⊨ B' ⇒ []) ∨
+        (ε_can_reach_from m A ∧ G ⊨ B' ⇒ []) ∨
         (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧
-          can_reach_from m A x δ = true ∧ can_derive m B' x δ = true)))
+          can_reach_from m A x δ ∧ can_derive m B' x δ)))
     ).
 
   Definition Φ_reach S : formula := λ k m,
@@ -276,21 +268,23 @@ Section encoding.
     Φ_reach_nonempty X k (encode X w).
   Proof.
     intros <- B x δ ? ?.
-    rewrite bool_decide_eq_true -reachable_from_spec -check_reachable_from_spec /=.
+    have Heq : can_reach_from (encode X w) B x δ ↔ check_reachable_from G (X, w) (B, slice w x δ).
+    { rewrite check_reachable_from_spec reachable_from_spec //. }
+    rewrite Heq /=.
     setoid_rewrite reachable_from_spec.
     setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
     setoid_rewrite decode_encode.
     repeat apply ZifyClasses.or_morph.
     - rewrite slice_full_iff //. apply list_nonempty_length; lia.
-    - by setoid_rewrite bool_decide_eq_true.
+    - done.
     - split.
       + intros [A [B' [φ [wr [? [Hr [? ?]]]]]]].
         exists A, B', φ, (length wr).
-        rewrite bool_decide_eq_true. destruct wr as [|tk l].
+        destruct wr as [|tk l].
         * rewrite /= slice_nil !Nat.add_0_r.
           rewrite app_nil_r in Hr.
           repeat split => //.
-        * case_bool_decide => //. rewrite bool_decide_eq_true.
+        * case_bool_decide => //. 
           have Hsub : sublist (slice w x δ ++ tk :: l) w by eapply reachable_sublist; eauto.
           apply sublist_app_slice_NoDup in Hsub as [x' [Hlen [Hx' Hl]]];
             [| eauto | rewrite slice_length; lia | lia].
@@ -299,19 +293,18 @@ Section encoding.
           subst. rewrite Hδ in Hl. rewrite -slice_app_1 -Hl.
           repeat split => //.
       + intros [A [B' [φ [δ' [? [? [Hr [Hd Hφ]]]]]]]].
-        apply bool_decide_eq_true in Hr.
         exists A, B', φ, (slice w (x + δ) δ').
         rewrite slice_app_1.
         repeat split => //.
-        case_bool_decide; [by subst | by apply bool_decide_eq_true in Hd].
+        case_bool_decide; [by subst | done].
     - split.
       + intros [A [B' [φ [wl [? [Hr [? ?]]]]]]].
         exists A, B', φ, (length wl).
-        rewrite bool_decide_eq_true. destruct wl as [|tk l].
+        destruct wl as [|tk l].
         * rewrite /= slice_nil !Nat.sub_0_r.
           rewrite app_nil_l in Hr.
           repeat split => //. lia.
-        * case_bool_decide => //. rewrite bool_decide_eq_true.
+        * case_bool_decide => //. 
           have Hsub : sublist ((tk :: l) ++ slice w x δ) w by eapply reachable_sublist; eauto.
           apply sublist_app_slice_NoDup in Hsub as [x' [Hlen [Hx' Hl]]];
             [| eauto | rewrite cons_length; lia | rewrite slice_length; lia].
@@ -320,11 +313,10 @@ Section encoding.
           subst. rewrite Nat.add_sub -slice_app_1 -Hx'.
           repeat split => //. lia.
       + intros [A [B' [φ [δ' [? [? [Hr [Hd Hφ]]]]]]]].
-        apply bool_decide_eq_true in Hr.
         exists A, B', φ, (slice w (x - δ') δ').
         rewrite slice_app_2; [lia|].
         repeat split => //.
-        case_bool_decide; [by subst | by apply bool_decide_eq_true in Hd].
+        case_bool_decide; [by subst | done].
   Qed.
 
   Lemma apply_unary_nil (φ : unary_predicate Σ) :
@@ -344,9 +336,10 @@ Section encoding.
     Φ_reach_empty X k (encode X w).
   Proof.
     intros <- B.
-    rewrite bool_decide_eq_true -reachable_from_spec -check_reachable_from_spec /=.
+    have Heq : ε_can_reach_from (encode X w) B ↔ check_reachable_from G (X, w) (B, []).
+    { rewrite check_reachable_from_spec reachable_from_spec //. }
+    rewrite Heq /=.
     setoid_rewrite reachable_from_spec.
-    setoid_rewrite bool_decide_eq_true.
     repeat apply ZifyClasses.or_morph.
     - rewrite length_zero_iff_nil. naive_solver.
     - setoid_rewrite apply_unary_nil. naive_solver.
@@ -394,7 +387,7 @@ Section encoding.
     Φ_derive k m →
     Φ_reach_nonempty S k m →
     ∀ B x δ, 0 < δ → x + δ ≤ k →
-      can_reach_from m B x δ = true → (* only this direction is needed *)
+      can_reach_from m B x δ → (* only this direction is needed *)
       reachable G (S, decode m k) (B, slice (decode m k) x δ).
   Proof.
     intros HΦ' HΦ B x δ ? ? ?. rewrite -reachable_from_spec.
@@ -418,7 +411,8 @@ Section encoding.
     - destruct Hr as [A [B' [φ [δ' [? [? [? [? ?]]]]]]]].
       case_bool_decide; subst.
       * eapply reachable_from_left; eauto.
-        rewrite app_nil_r. apply IHB; last naive_solver.
+        rewrite app_nil_r. apply IHB.
+        2: by rewrite Nat.add_0_r in H4.
         eapply succ_left; eauto.
       * eapply reachable_from_left; eauto.
         2: eapply Φ_derive_spec; eauto; lia.
@@ -436,7 +430,7 @@ Section encoding.
     Φ_reach_nonempty S k m →
     Φ_reach_empty S k m →
     ∀ B,
-      ε_can_reach_from m B = true → (* only this direction is needed *)
+      ε_can_reach_from m B → (* only this direction is needed *)
       reachable G (S, decode m k) (B, []).
   Proof.
     intros ? ? HΦ B. rewrite -reachable_from_spec.
@@ -517,10 +511,10 @@ Section encoding.
     | using_atom a => λ k m, δ = 1 ∧ term m x = a
     | using_unary B φ => λ k m,
       if bool_decide (δ = 0) then G ⊨ B ⇒ []
-      else Φ_apply₁ φ x δ k m ∧ can_derive m B x δ = true
+      else Φ_apply₁ φ x δ k m ∧ can_derive m B x δ
     | using_binary Bl Br φ δ' => λ k m,
-      (if bool_decide (δ' = 0) then G ⊨ Bl ⇒ [] else can_derive m Bl x δ' = true) ∧
-      (if bool_decide (δ - δ' = 0) then G ⊨ Br ⇒ [] else can_derive m Br (x + δ') (δ - δ') = true) ∧
+      (if bool_decide (δ' = 0) then G ⊨ Bl ⇒ [] else can_derive m Bl x δ') ∧
+      (if bool_decide (δ - δ' = 0) then G ⊨ Br ⇒ [] else can_derive m Br (x + δ') (δ - δ')) ∧
       Φ_apply₂ φ x δ' (x + δ') (δ - δ') k m
     end.
 
@@ -682,8 +676,8 @@ Section encoding.
 
   Definition Φ_amb A : formula := λ k m,
     Φ_derive k m ∧ Φ_reach A k m ∧ ∃ H,
-     (ε_can_reach_from m H = true ∧ Φ_multi_usable H 0 0 k m) ∨
-     (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧ can_reach_from m H x δ = true ∧ Φ_multi_usable H x δ k m).
+     (ε_can_reach_from m H ∧ Φ_multi_usable H 0 0 k m) ∨
+     (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧ can_reach_from m H x δ ∧ Φ_multi_usable H x δ k m).
 
   Theorem Φ_amb_sound A k m :
     Φ_amb A k m → derive_amb G A (decode m k).
@@ -709,13 +703,13 @@ Section encoding.
     have HΦ' : Φ_reach X (length w) (encode X w) by apply Φ_reach_sat.
     do 2 (split; first done). exists C.
     destruct h as [|tk h].
-    - left. rewrite bool_decide_eq_true. split; first done.
+    - left. split; first done.
       eapply Φ_multi_usable_spec; eauto; lia.
     - right.
       have Hsub : sublist (tk :: h) w by eapply reachable_sublist; eauto.
       apply sublist_slice in Hsub as [x [? Hh]].
       exists x, (length (tk :: h)).
-      rewrite bool_decide_eq_true -Hh. repeat split => //.
+      simpl can_reach_from. rewrite -Hh. repeat split => //.
       1: rewrite cons_length; lia.
       eapply Φ_multi_usable_spec; eauto; try congruence.
       rewrite decode_encode -Hh; eauto.
