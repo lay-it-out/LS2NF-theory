@@ -1,4 +1,4 @@
-From stdpp Require Import prelude.
+From stdpp Require Import prelude sorting.
 From Coq Require Import ssreflect.
 From ambig Require Import grammar util ambiguity acyclic sub_derive slice derivation witness.
 
@@ -71,7 +71,22 @@ Section encoding.
 
   Implicit Type w : sentence Σ.
   Implicit Type x δ : nat.
-  Context `{∀ w, NoDup w}.
+
+  (* this is our ground truth: ill-formed sentences are not considered *)
+  Axiom sentence_well_formed : ∀ w, well_formed w.
+
+  Lemma well_formed_no_dup w : NoDup w.
+  Proof.
+    have := (sentence_well_formed w).
+    induction w => Hwf; constructor.
+    - apply Sorted_extends in Hwf. 2: apply token_lt_trans.
+      rewrite ->Forall_forall in Hwf.
+      intros Hin. specialize (Hwf _ Hin). destruct a as [? [x y]].
+      unfold token_lt in Hwf. simpl in Hwf. lia.
+    - inversion Hwf; subst; clear Hwf. eauto.
+  Qed.
+
+  Hint Resolve well_formed_no_dup : core.
 
   (* formula: a predicate over a bounded model *)
 
@@ -412,7 +427,7 @@ Section encoding.
       case_bool_decide; subst.
       * eapply reachable_from_left; eauto.
         rewrite app_nil_r. apply IHB.
-        2: by rewrite Nat.add_0_r in H4.
+        2: by rewrite Nat.add_0_r in H3.
         eapply succ_left; eauto.
       * eapply reachable_from_left; eauto.
         2: eapply Φ_derive_spec; eauto; lia.
@@ -618,8 +633,8 @@ Section encoding.
       * simpl. intros Heq. subst. rewrite Heq in Hψ2.
         eapply unary_clause_predicate_unique in Hψ1; [|exact Hψ2].
         congruence.
-      * simpl. intros [Heq1 [Heq2 ?]]. subst. rewrite Heq1 Heq2 in H3.
-        eapply binary_clause_predicate_unique in H3; [|exact H4].
+      * simpl. intros [Heq1 [Heq2 ?]]. subst. rewrite Heq1 Heq2 in H2.
+        eapply binary_clause_predicate_unique in H2; [|exact H3].
         have Heq : slice (decode m k) x n4 = slice (decode m k) x n1 by congruence.
         apply slice_eq_inv in Heq => //. 2-3: rewrite decode_length; lia.
         congruence.

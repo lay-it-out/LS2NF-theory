@@ -1,6 +1,6 @@
 From stdpp Require Import relations.
 From Coq Require Import ssreflect.
-From ambig Require Import grammar (* reachable *).
+From ambig Require Import grammar.
 
 Section acyclic.
 

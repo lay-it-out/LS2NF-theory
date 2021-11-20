@@ -1,4 +1,4 @@
-From stdpp Require Import relations list.
+From stdpp Require Import relations list sorting.
 From Coq Require Import ssreflect.
 
 Section grammar.
@@ -12,9 +12,12 @@ Section grammar.
     letter : Σ;
     pos : nat (* line number *) * nat (* column number *);
   }.
-
-  Arguments letter {_}.
-  Arguments pos {_}.
+  
+  Global Instance token_eq_dec : EqDecision token.
+  Proof.
+    intros [a1 p1] [a2 p2].
+    destruct (decide (a1 = a2 ∧ p1 = p2)); [left | right]; naive_solver.
+  Qed.
 
   Declare Scope grammar_scope.
   Local Open Scope grammar_scope.
@@ -26,11 +29,23 @@ Section grammar.
 
   Definition sentence : Type := list token.
 
-  Global Instance token_eq_dec : EqDecision token.
+  (* a well-formed sentence *)
+  Definition pos_lt : relation (nat * nat) := λ p1 p2,
+    match p1, p2 with (x1, y1), (x2, y2) =>
+      (x1 < x2) ∨ (x1 = x2 ∧ y1 < y2)
+    end.
+
+  Definition token_lt : relation token := λ tk1 tk2,
+    pos_lt (pos tk1) (pos tk2).
+
+  Global Instance token_lt_trans : Transitive token_lt.
   Proof.
-    intros [a1 p1] [a2 p2].
-    destruct (decide (a1 = a2 ∧ p1 = p2)); [left | right]; naive_solver.
+    intros [? [? ?]] [? [? ?]] [? [? ?]].
+    unfold token_lt. simpl. lia.
   Qed.
+
+  Definition well_formed (w : sentence) : Prop :=
+    Sorted token_lt w.
 
   (* nonterminals *)
 
@@ -294,6 +309,7 @@ Arguments tree_valid {_} {_}.
 Arguments derive {_} {_}.
 Arguments nullable {_} {_} {_} {_}.
 Arguments tree_witness {_} {_}.
+Arguments well_formed {_}.
 
 Notation "a @ p" := {|
   letter := a;
