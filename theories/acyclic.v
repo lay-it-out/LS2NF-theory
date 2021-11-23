@@ -1,44 +1,42 @@
-From stdpp Require Import relations.
+From stdpp Require Import relations finite.
 From Coq Require Import ssreflect.
-From ambig Require Import grammar.
+From ambig Require Import grammar acyclic_wf.
 
 Section acyclic.
 
-  Variable Σ N : Type.
+  Context {Σ N : Type} `{Finite N} (G : grammar Σ N).
 
   (* On the graph representation of the grammar: direct edge *)
-  Inductive succ (G : grammar Σ N) : relation N :=
+  Inductive succ : relation N :=
     | succ_unary A B φ :
       A ↦ unary B φ ∈ G →
-      succ G A B
+      succ A B
     | succ_left A B E φ :
       A ↦ binary B E φ ∈ G →
       G ⊨ E ⇒ [] →
-      succ G A B
+      succ A B
     | succ_right A B E φ :
       A ↦ binary E B φ ∈ G →
       G ⊨ E ⇒ [] →
-      succ G A B
+      succ A B
     .
 
-  (* On graph: do not have non-trivial cycles (a cycle with min length 2) *)
-  Definition unit G : Prop :=
-    ¬ ∃ A B, A ≠ B ∧ succ G A B ∧ ex_loop (succ G) B.
+  Definition prec : relation N := flip succ.
 
-  (* every grammar can be unitized *)
+  (* acyclic grammar *)
 
-  (* acyclic *)
+  Definition acyclic : Prop := acyclic succ.
 
-  Definition acyclic G : Prop :=
-    ¬ ∃ A, ex_loop (succ G) A.
+  Lemma acyclic_succ_flip_wf :
+    acyclic → wf (flip succ).
+  Proof.
+    intros. eapply acyclic_flip_wf; eauto.
+  Qed.
 
-  Axiom acyclic_succ_flip_wf : ∀ G,
-    acyclic G → wf (flip (succ G)).
-
-  Axiom acyclic_succ_wf : ∀ G,
-    acyclic G → wf (succ G).
+  Lemma acyclic_succ_wf :
+    acyclic → wf succ.
+  Proof.
+    intros. eapply acyclic_wf; eauto.
+  Qed.
 
 End acyclic.
-
-Arguments succ {_} {_}.
-Arguments acyclic {_} {_}.
