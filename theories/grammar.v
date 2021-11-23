@@ -259,19 +259,6 @@ Section grammar.
 
   Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
 
-  (* nullability is decidable *)
-
-  Parameter nullable : grammar → N → bool.
-
-  Axiom nullable_spec : ∀ G A,
-    nullable G A = true ↔ G ⊨ A ⇒ [].
-
-  Global Instance nullable_dec G A : Decision (G ⊨ A ⇒ []).
-  Proof.
-    have ? := nullable_spec G A.
-    destruct (nullable G A); [left | right]; naive_solver.
-  Qed.
-
   (* standard notion of ambiguity *)
 
   Definition derive_amb G A w : Prop :=
@@ -307,7 +294,6 @@ Arguments root {_} {_}.
 Arguments word {_} {_}.
 Arguments tree_valid {_} {_}.
 Arguments derive {_} {_}.
-Arguments nullable {_} {_} {_} {_}.
 Arguments tree_witness {_} {_}.
 Arguments well_formed {_}.
 
