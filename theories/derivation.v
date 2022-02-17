@@ -4,8 +4,10 @@ From ambig Require Import grammar.
 
 Section derivation.
 
-  Context {Σ N : Type} `{EqDecision Σ} `{EqDecision N}.
+  Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.
   Context (G : grammar Σ N).
+
+  Open Scope grammar_scope.
 
   Inductive derivation : N → sentence Σ → Prop :=
   | derive_ε A :
@@ -28,7 +30,7 @@ Section derivation.
   .
 
   Lemma derivation_spec A w :
-    derivation A w ↔ G ⊨ A ⇒ w.
+    derivation A w ↔ G ⊨ A => w.
   Proof.
     split.
     - (* -> *)

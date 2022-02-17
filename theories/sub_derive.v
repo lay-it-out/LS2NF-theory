@@ -4,18 +4,17 @@ From ambig Require Import grammar util slice.
 
 Section sub_derive.
 
-  Variable Σ N : Type.
-  Context `{EqDecision Σ}.
-  Context `{EqDecision N}.
-
-  Variable G : grammar Σ N.
+  Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.
+  Context (G : grammar Σ N).
 
   Implicit Type A B S : N.
   Implicit Type w v u : sentence Σ.
 
+  Open Scope grammar_scope.
+
   (* subtree *)
 
-  Inductive child : relation (tree Σ N) :=
+  Inductive child : relation (@tree Σ N) :=
   | child_unary A t :
     child t (unary_tree A t)
   | child_left A t t' :
@@ -33,7 +32,7 @@ Section sub_derive.
     all: naive_solver.
   Qed.
 
-  Definition subtree : relation (tree Σ N) := rtc child.
+  Definition subtree := rtc child.
 
   (* By definition, subtree is transitive *)
 
@@ -110,12 +109,12 @@ Section sub_derive.
   | step_left A Bl Br φ wl wr :
     A ↦ binary Bl Br φ ∈ G →
     apply₂ φ wl wr = true →
-    G ⊨ Br ⇒ wr →
+    G ⊨ Br => wr →
     step (A, wl ++ wr) (Bl, wl)
   | step_right A Bl Br φ wl wr :
     A ↦ binary Bl Br φ ∈ G →
     apply₂ φ wl wr = true →
-    G ⊨ Bl ⇒ wl →
+    G ⊨ Bl => wl →
     step (A, wl ++ wr) (Br, wr)
   .
 
@@ -143,7 +142,7 @@ Section sub_derive.
   Qed.
 
   Lemma reachable_spec A w B v :
-    G ⊨ B ⇒ v →
+    G ⊨ B => v →
     (A, w) →∗ (B, v) ↔ sub_derive (A, w) (B, v).
   Proof.
     intros Hv. split.
@@ -210,13 +209,13 @@ Section sub_derive.
   | reachable_to_left A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_to σ (Bl, w1) →
-    G ⊨ Br ⇒ w2 →
+    G ⊨ Br => w2 →
     apply₂ φ w1 w2 = true →
     reachable_to σ (A, w1 ++ w2)
   | reachable_to_right A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_to σ (Br, w2) →
-    G ⊨ Bl ⇒ w1 →
+    G ⊨ Bl => w1 →
     apply₂ φ w1 w2 = true →
     reachable_to σ (A, w1 ++ w2)
   .
@@ -249,13 +248,13 @@ Section sub_derive.
   | reachable_from_left A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_from σ (A, w1 ++ w2) →
-    G ⊨ Br ⇒ w2 →
+    G ⊨ Br => w2 →
     apply₂ φ w1 w2 = true →
     reachable_from σ (Bl, w1)
   | reachable_from_right A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_from σ (A, w1 ++ w2) →
-    G ⊨ Bl ⇒ w1 →
+    G ⊨ Bl => w1 →
     apply₂ φ w1 w2 = true →
     reachable_from σ (Br, w2)
   .
@@ -282,9 +281,9 @@ Section sub_derive.
     | (X, u), (B, w) =>
       (B = X ∧ w = u) ∨
       (∃ A φ, A ↦ unary B φ ∈ G ∧ reachable_from σ (A, w) ∧ apply₁ φ w = true) ∨
-      (∃ A B' φ w', A ↦ binary B B' φ ∈ G ∧ reachable_from σ (A, w ++ w') ∧ G ⊨ B' ⇒ w' ∧
+      (∃ A B' φ w', A ↦ binary B B' φ ∈ G ∧ reachable_from σ (A, w ++ w') ∧ G ⊨ B' => w' ∧
         apply₂ φ w w' = true) ∨
-      (∃ A B' φ w', A ↦ binary B' B φ ∈ G ∧ reachable_from σ (A, w' ++ w) ∧ G ⊨ B' ⇒ w' ∧
+      (∃ A B' φ w', A ↦ binary B' B φ ∈ G ∧ reachable_from σ (A, w' ++ w) ∧ G ⊨ B' => w' ∧
         apply₂ φ w' w = true)
     end.
 

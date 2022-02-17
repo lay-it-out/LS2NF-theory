@@ -20,9 +20,9 @@ Section acyclic_wf.
 
   Definition acyclic (R : relation A) : Prop := ∀ x, ¬ ex_loop R x.
 
-  Context `{Finite A}.
+  Context `{!EqDecision A} `{!Finite A}.
 
-  Lemma acyclic_flip_wf :
+  Lemma finite_acyclic_flip_wf :
     acyclic R → wf (flip R).
   Proof.
     intros Hno x. apply tc_finite_sn.
@@ -30,7 +30,7 @@ Section acyclic_wf.
     - unfold pred_finite. eexists => ? ?. apply elem_of_enum.
   Qed.
 
-  Lemma acyclic_wf :
+  Lemma finite_acyclic_wf :
     acyclic R → wf R.
   Proof.
     intros Hno x. apply tc_finite_sn.

@@ -1,151 +1,154 @@
-From stdpp Require Import relations list sorting.
+From stdpp Require Import relations sorting.
 From Coq Require Import ssreflect.
 
-Section grammar.
+Declare Scope grammar_scope.
+Local Open Scope grammar_scope.
 
-  (* token, sentence *)
+(* Positioned token. *)
+Record pos_token (Σ : Type) := {
+  token : Σ;
+  pos : nat (* line number *) * nat (* column number *);
+}.
 
-  Variable Σ : Type.
-  Context `{EqDecision Σ}.
+Arguments token {_}.
+Arguments pos {_}.
 
-  Record token := {
-    letter : Σ;
-    pos : nat (* line number *) * nat (* column number *);
-  }.
-  
-  Global Instance token_eq_dec : EqDecision token.
-  Proof.
-    intros [a1 p1] [a2 p2].
-    destruct (decide (a1 = a2 ∧ p1 = p2)); [left | right]; naive_solver.
-  Qed.
+Notation "a @ p" := {|
+  token := a;
+  pos := p;
+|} (at level 40) : grammar_scope.
 
-  Declare Scope grammar_scope.
-  Local Open Scope grammar_scope.
+Global Instance pos_token_eq_dec Σ `{!EqDecision Σ} : EqDecision (pos_token Σ).
+Proof.
+  intros [a1 p1] [a2 p2].
+  destruct (decide (a1 = a2 ∧ p1 = p2)); [left | right]; naive_solver.
+Qed.
 
-  Notation "a @ p" := {|
-    letter := a;
-    pos := p;
-  |} (at level 40).
+Definition pos_token_lt (Σ : Type) : relation (pos_token Σ) := λ pt1 pt2,
+  match pos pt1, pos pt2 with (x1, y1), (x2, y2) =>
+    (x1 < x2) ∨ (x1 = x2 ∧ y1 < y2)
+  end.
 
-  Definition sentence : Type := list token.
+Global Instance pos_token_lt_trans Σ : Transitive (pos_token_lt Σ).
+Proof.
+  intros [? [? ?]] [? [? ?]] [? [? ?]].
+  unfold pos_token_lt. simpl. lia.
+Qed.
 
-  (* a well-formed sentence *)
-  Definition pos_lt : relation (nat * nat) := λ p1 p2,
-    match p1, p2 with (x1, y1), (x2, y2) =>
-      (x1 < x2) ∨ (x1 = x2 ∧ y1 < y2)
-    end.
+(* Sentence: a list of positioned tokens. *)
+Definition sentence (Σ : Type) : Type := list (pos_token Σ).
 
-  Definition token_lt : relation token := λ tk1 tk2,
-    pos_lt (pos tk1) (pos tk2).
+(* A well-formed sentence: positions are increasing. *)
+Definition well_formed {Σ : Type} (w : sentence Σ) : Prop :=
+  Sorted (pos_token_lt Σ) w.
 
-  Global Instance token_lt_trans : Transitive token_lt.
-  Proof.
-    intros [? [? ?]] [? [? ?]] [? [? ?]].
-    unfold token_lt. simpl. lia.
-  Qed.
+(* Layout-free clauses. *)
+Inductive lf_clause (Σ N : Type) : Type :=
+  | lf_ε
+  | lf_atom (a : Σ)
+  | lf_unary (A : N)
+  | lf_binary (Al Ar : N)
+  .
 
-  Definition well_formed (w : sentence) : Prop :=
-    Sorted token_lt w.
+Arguments lf_ε {_} {_}.
+Arguments lf_atom {_} {_}.
+Arguments lf_unary {_} {_}.
+Arguments lf_binary {_} {_}.
 
-  (* nonterminals *)
+Definition check_lf_clause_eq {Σ N} `{!EqDecision Σ} `{!EqDecision N} (α β : lf_clause Σ N) : bool :=
+  match α, β with
+  | lf_ε, lf_ε => true
+  | lf_atom a, lf_atom b => bool_decide (a = b)
+  | lf_unary A, lf_unary A' => bool_decide (A = A')
+  | lf_binary Al Ar, lf_binary Al' Ar' =>
+    bool_decide (Al = Al') && bool_decide (Ar = Ar')
+  | _, _ => false
+  end.
 
-  Variable N : Type.
-  Context `{EqDecision N}.
+Lemma check_lf_clause_eq_spec {Σ N} `{!EqDecision Σ} `{!EqDecision N} (α β : lf_clause Σ N) :
+  check_lf_clause_eq α β = true ↔ α = β.
+Proof.
+  destruct α; destruct β => //=.
+  all: try rewrite !andb_true_iff.
+  all: rewrite !bool_decide_eq_true.
+  all: naive_solver.
+Qed.
 
-  (* layout-free clauses *)
+Global Instance lf_clause_eq_dec Σ N `{!EqDecision Σ} `{!EqDecision N} : EqDecision (lf_clause Σ N).
+Proof.
+  intros α β.
+  have ? : check_lf_clause_eq α β = true ↔ α = β by apply check_lf_clause_eq_spec.
+  destruct (check_lf_clause_eq α β); [left | right]; naive_solver.
+Qed.
 
-  Inductive lf_clause : Type :=
-    | lf_ε
-    | lf_atom (a : Σ)
-    | lf_unary (A : N)
-    | lf_binary (Al Ar : N)
-    .
+(* Layout predicates. *)
+Definition unary_predicate (Σ : Type) : Type := {p : sentence Σ → bool & p [] = true}.
+Definition apply₁ {Σ : Type} (φ : unary_predicate Σ) := projT1 φ.
 
-  Definition check_lf_clause_eq α β : bool :=
-    match α, β with
-    | lf_ε, lf_ε => true
-    | lf_atom a, lf_atom b => bool_decide (a = b)
-    | lf_unary A, lf_unary A' => bool_decide (A = A')
-    | lf_binary Al Ar, lf_binary Al' Ar' =>
-      bool_decide (Al = Al') && bool_decide (Ar = Ar')
-    | _, _ => false
-    end.
+Definition binary_predicate (Σ : Type) : Type :=
+  {p : sentence Σ → sentence Σ → bool & ∀ w1 w2, w1 = [] ∨ w2 = [] → p w1 w2 = true}.
+Definition apply₂ {Σ : Type} (φ : binary_predicate Σ) := projT1 φ.
 
-  Lemma check_lf_clause_eq_spec α β :
-    check_lf_clause_eq α β = true ↔ α = β.
-  Proof.
-    destruct α; destruct β => //=.
-    all: try rewrite !andb_true_iff.
-    all: rewrite !bool_decide_eq_true.
-    all: naive_solver.
-  Qed.
+(* Layout-sensitive binary normal form. *)
+Record grammar (Σ N : Type) := {
+  (* start symbol *)
+  start : N;
+  (* productions *)
+  lf_clauses : N → list (lf_clause Σ N);
+  lf_clauses_no_dup : ∀ A, NoDup (lf_clauses A);
+  unary_clause_predicate : N → N → unary_predicate Σ;
+  binary_clause_predicate : N → N → N → binary_predicate Σ;
+}.
 
-  Global Instance lf_clause_eq_dec : EqDecision lf_clause.
-  Proof.
-    intros α β.
-    have ? := check_lf_clause_eq_spec α β.
-    destruct (check_lf_clause_eq α β); [left | right]; naive_solver.
-  Qed.
+Arguments lf_clauses {_} {_}.
+Arguments lf_clauses_no_dup {_} {_}.
+Arguments unary_clause_predicate {_} {_}.
+Arguments binary_clause_predicate {_} {_}.
 
-  (* layout predicates *)
+(* Layout-sensitive clauses. *)
+Inductive clause (Σ N : Type) : Type :=
+  | ε
+  | atom (token : Σ)
+  | unary (A : N) (φ : unary_predicate Σ)
+  | binary (Al Ar : N) (φ : binary_predicate Σ)
+  .
 
-  Definition unary_predicate : Type :=
-    {p : sentence → bool & p [] = true}.
-  Definition apply₁ (φ : unary_predicate) := projT1 φ.
+Arguments ε {_} {_}.
+Arguments atom {_} {_}.
+Arguments unary {_} {_}.
+Arguments binary {_} {_}.
 
-  Definition binary_predicate : Type :=
-    {p : sentence → sentence → bool & ∀ w1 w2, w1 = [] ∨ w2 = [] → p w1 w2 = true}.
-  Definition apply₂ (φ : binary_predicate) := projT1 φ.
+Definition clauses {Σ N : Type} (G : grammar Σ N) (A : N) : list (clause Σ N) :=
+  (λ α, match α with
+  | lf_ε => ε
+  | lf_atom a => atom a
+  | lf_unary B => unary B (unary_clause_predicate G A B)
+  | lf_binary Bl Br => binary Bl Br (binary_clause_predicate G A Bl Br)
+  end) <$> lf_clauses G A.
 
-  (* grammar *)
+Inductive production (Σ N : Type) : Type :=
+  mk_production (lhs : N) (rhs : clause Σ N).
+Arguments mk_production {_} {_}.
+Notation "A ↦ α" := (mk_production A α) (at level 40) : grammar_scope.
 
-  Record grammar := {
-    (* start symbol *)
-    start : N;
-    (* productions *)
-    lf_clauses : N → list lf_clause;
-    lf_clauses_no_dup : ∀ A, NoDup (lf_clauses A);
-    unary_clause_predicate : N → N → unary_predicate;
-    binary_clause_predicate : N → N → N → binary_predicate;
-  }.
+Global Instance production_elem_of_grammar Σ N : ElemOf (production Σ N) (grammar Σ N) := λ p G,
+  match p with
+  | mk_production A α => α ∈ clauses G A
+  end.
+(* So that one can write "A ↦ α ∈ G". *)
 
-  Implicit Type G : grammar.
+Section clauses.
+  Context {Σ N : Type}.
+  Context (G : grammar Σ N).
 
-  (* clauses and productions *)
-
-  Inductive clause : Type :=
-    | ε : clause
-    | atom : Σ → clause
-    | unary : N → unary_predicate → clause
-    | binary : N → N → binary_predicate → clause
-    .
-
-  Definition clauses G A : list clause :=
-    (λ α, match α with
-    | lf_ε => ε
-    | lf_atom a => atom a
-    | lf_unary B => unary B (unary_clause_predicate G A B)
-    | lf_binary Bl Br => binary Bl Br (binary_clause_predicate G A Bl Br)
-    end) <$> lf_clauses G A.
-
-  Inductive production : Type :=
-    mk_production : N → clause → production.
-
-  Notation "A ↦ α" := (mk_production A α) (at level 40).
-
-  Global Instance production_elem_of_grammar : ElemOf production grammar := λ p G,
-    match p with
-    | mk_production A α => α ∈ clauses G A
-    end.
-
-  (* So that one can use notation "A ↦ α ∈ G" *)
-
-  Lemma elem_of_clauses G A α :
+  Lemma elem_of_clauses A α :
     A ↦ α ∈ G → match α with
     | ε => lf_ε ∈ lf_clauses G A
     | atom a => lf_atom a ∈ lf_clauses G A
-    | unary B φ => lf_unary B ∈ lf_clauses G A ∧ φ = unary_clause_predicate G A B
-    | binary Bl Br φ => lf_binary Bl Br ∈ lf_clauses G A ∧ φ = binary_clause_predicate G A Bl Br
+    | unary B φ => lf_unary B ∈ lf_clauses G A ∧
+        φ = unary_clause_predicate G A B
+    | binary Bl Br φ => lf_binary Bl Br ∈ lf_clauses G A ∧
+        φ = binary_clause_predicate G A Bl Br
     end.
   Proof.
     unfold elem_of, production_elem_of_grammar.
@@ -154,7 +157,7 @@ Section grammar.
     all: inversion Heq; subst; clear Heq => //.
   Qed.
 
-  Lemma unary_clause_predicate_unique G A B φ φ' :
+  Lemma unary_clause_predicate_unique A B φ φ' :
     A ↦ unary B φ ∈ G →
     A ↦ unary B φ' ∈ G →
     φ = φ'.
@@ -163,7 +166,7 @@ Section grammar.
     naive_solver.
   Qed.
 
-  Lemma binary_clause_predicate_unique G A Bl Br φ φ' :
+  Lemma binary_clause_predicate_unique A Bl Br φ φ' :
     A ↦ binary Bl Br φ ∈ G →
     A ↦ binary Bl Br φ' ∈ G →
     φ = φ'.
@@ -171,14 +174,18 @@ Section grammar.
     intros Hφ Hφ'. apply elem_of_clauses in Hφ, Hφ'.
     naive_solver.
   Qed.
+End clauses.
 
-  (* parsing *)
+Section parsing.
+  Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.
+  Context (G : grammar Σ N).
 
+  (* Parse tree. *)
   Inductive tree : Type :=
-    | ε_tree : N → tree
-    | token_tree : N → token → tree
-    | unary_tree : N → tree → tree
-    | binary_tree : N → tree → tree → tree
+    | ε_tree (r : N)
+    | token_tree (r : N) (pt : pos_token Σ)
+    | unary_tree (r : N) (t : tree)
+    | binary_tree (r : N) (tl tr : tree)
     .
 
   Definition root t : N :=
@@ -189,7 +196,7 @@ Section grammar.
     | binary_tree R _ _ => R
     end.
 
-  Fixpoint word t : sentence :=
+  Fixpoint word t : sentence Σ :=
     match t with
     | ε_tree _ => []
     | token_tree _ tk => [tk]
@@ -225,90 +232,33 @@ Section grammar.
     destruct (check_tree_eq t1 t2); [left | right]; naive_solver.
   Qed.
 
-  Inductive tree_valid G : tree → Prop :=
+  (* Parse tree validity. *)
+  Inductive tree_valid : tree → Prop :=
     | valid_ε A :
       A ↦ ε ∈ G →
-      tree_valid G (ε_tree A)
+      tree_valid (ε_tree A)
     | valid_token A a p :
       A ↦ atom a ∈ G →
-      tree_valid G (token_tree A (a @ p))
+      tree_valid (token_tree A (a @ p))
     | valid_unary A t' φ :
       A ↦ unary (root t') φ ∈ G →
-      tree_valid G t' →
+      tree_valid t' →
       apply₁ φ (word t') = true →
-      tree_valid G (unary_tree A t')
+      tree_valid (unary_tree A t')
     | valid_binary A t1 t2 φ :
       A ↦ binary (root t1) (root t2) φ ∈ G →
-      tree_valid G t1 →
-      tree_valid G t2 →
+      tree_valid t1 →
+      tree_valid t2 →
       apply₂ φ (word t1) (word t2) = true →
-      tree_valid G (binary_tree A t1 t2)
+      tree_valid (binary_tree A t1 t2)
     .
 
-  Notation "✓{ G } t" := (tree_valid G t) (at level 40, format "'✓{' G '}'  t").
-
-  Definition tree_witness G t A w :=
-    root t = A ∧ word t = w ∧ ✓{G} t.
-
-  Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40).
+  Definition tree_witness t A w := root t = A ∧ word t = w ∧ tree_valid t.
 
   (* derivation *)
+  Definition derive A w : Prop := ∃ t, tree_witness t A w.
 
-  Definition derive G A w : Prop :=
-    ∃ t, t ▷ A ={G}=> w.
-
-  Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
-
-  (* standard notion of ambiguity *)
-
-  Definition derive_amb G A w : Prop :=
-    ∃ t1 t2, t1 ▷ A ={G}=> w ∧ t2 ▷ A ={G}=> w ∧ t1 ≠ t2.
-
-  Definition amb G :=
-    ∃ w, derive_amb G (start G) w.
-
-End grammar.
-
-Arguments letter {_}.
-Arguments pos {_}.
-
-Arguments start {_} {_}.
-
-Arguments ε {_} {_}.
-Arguments atom {_} {_}.
-Arguments unary {_} {_}.
-Arguments binary {_} {_}.
-
-Arguments clauses {_} {_}.
-Arguments mk_production {_} {_}.
-
-Arguments apply₁ {_}.
-Arguments apply₂ {_}.
-
-Arguments ε_tree {_} {_}.
-Arguments token_tree {_} {_}.
-Arguments unary_tree {_} {_}.
-Arguments binary_tree {_} {_}.
-
-Arguments root {_} {_}.
-Arguments word {_} {_}.
-Arguments tree_valid {_} {_}.
-Arguments derive {_} {_}.
-Arguments tree_witness {_} {_}.
-Arguments well_formed {_}.
-
-Notation "a @ p" := {|
-  letter := a;
-  pos := p;
-|} (at level 40).
-
-Notation "A ↦ α" := (mk_production A α) (at level 40).
-
-Notation "✓{ G } t" := (tree_valid G t) (at level 40, format "'✓{' G '}'  t").
-
-Notation "G ⊨ A ⇒ w" := (derive G A w) (at level 65).
-
-Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40).
-
-Arguments derive_amb {_} {_}.
-Arguments amb {_} {_}.
+End parsing.
+Notation "✓{ G } t" := (tree_valid G t) (at level 40, format "'✓{' G '}'  t") : grammar_scope.
+Notation "t ▷ A ={ G }=> w" := (tree_witness G t A w) (at level 40) : grammar_scope.
+Notation "G ⊨ A => w" := (derive G A w) (at level 65) : grammar_scope.

@@ -4,8 +4,10 @@ From ambig Require Import grammar.
 
 Section witness.
 
-  Context {Σ N : Type} `{EqDecision Σ} `{EqDecision N}.
+  Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.
   Context (G : grammar Σ N).
+
+  Open Scope grammar_scope.
 
   Lemma witness_ε A :
     A ↦ ε ∈ G →

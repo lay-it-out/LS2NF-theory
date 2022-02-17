@@ -4,8 +4,10 @@ From ambig Require Import grammar util ambiguity acyclic sub_derive slice deriva
 
 Section encoding.
 
-  Context {Σ N : Type} `{EqDecision Σ} `{Inhabited Σ} `{EqDecision N} `{Finite N}.
-  Context (G : grammar Σ N) `{acyclic G}.
+  Context {Σ N : Type} `{!EqDecision Σ} `{!Inhabited Σ} `{!EqDecision N} `{!Finite N}.
+  Context (G : grammar Σ N) `{!acyclic G}.
+
+  Open Scope grammar_scope.
 
   (* sat model *)
 
@@ -52,7 +54,7 @@ Section encoding.
       | Some (_ @ (_, y)) => y
       | None => 0
       end;
-    can_derive A x δ := (G ⊨ A ⇒ slice w x δ);
+    can_derive A x δ := (G ⊨ A => slice w x δ);
     can_reach_from A x δ := (reachable G (S, w) (A, slice w x δ));
     ε_can_reach_from A := (reachable G (S, w) (A, []));
   |}.
@@ -64,7 +66,7 @@ Section encoding.
     1: by rewrite decode_length.
     intros i x y ?. rewrite decode_lookup //=. repeat case_match.
     - inversion 1; subst. intros Hy.
-      have Heq : Some (letter @ (n, n0)) = Some y by rewrite -Hy; symmetry.
+      have Heq : Some (token @ (n, n0)) = Some y by rewrite -Hy; symmetry.
       by inversion Heq.
     - rewrite Heqo. inversion 2.
   Qed.
@@ -79,10 +81,10 @@ Section encoding.
   Proof.
     have := (sentence_well_formed w).
     induction w => Hwf; constructor.
-    - apply Sorted_extends in Hwf. 2: apply token_lt_trans.
+    - apply Sorted_extends in Hwf. 2: apply pos_token_lt_trans.
       rewrite ->Forall_forall in Hwf.
       intros Hin. specialize (Hwf _ Hin). destruct a as [? [x y]].
-      unfold token_lt in Hwf. simpl in Hwf. lia.
+      unfold pos_token_lt in Hwf. simpl in Hwf. lia.
     - inversion Hwf; subst; clear Hwf. eauto.
   Qed.
 
@@ -112,8 +114,8 @@ Section encoding.
         (∃ a, A ↦ atom a ∈ G ∧ δ = 1 ∧ term m x = a) ∨
         (∃ B φ, A ↦ unary B φ ∈ G ∧ Φ_apply₁ φ x δ k m ∧ can_derive m B x δ) ∨
         (∃ Bl Br φ, A ↦ binary Bl Br φ ∈ G ∧ (
-          (G ⊨ Bl ⇒ [] ∧ can_derive m Br x δ) ∨
-          (G ⊨ Br ⇒ [] ∧ can_derive m Bl x δ) ∨
+          (G ⊨ Bl => [] ∧ can_derive m Br x δ) ∨
+          (G ⊨ Br => [] ∧ can_derive m Bl x δ) ∨
           (∃ δ', 0 < δ' < δ ∧
             can_derive m Bl x δ' ∧ can_derive m Br (x + δ') (δ - δ') ∧
             Φ_apply₂ φ x δ' (x + δ') (δ - δ') k m)
@@ -183,7 +185,7 @@ Section encoding.
   Lemma Φ_derive_spec k m :
     Φ_derive k m →
     ∀ A x δ, 0 < δ → x + δ ≤ k →
-      can_derive m A x δ ↔ G ⊨ A ⇒ slice (decode m k) x δ.
+      can_derive m A x δ ↔ G ⊨ A => slice (decode m k) x δ.
   Proof.
     intros HΦ A x δ ? ?.
     (* induction on range length *)
@@ -191,7 +193,7 @@ Section encoding.
     generalize dependent x.
     induction δ as [δ IHδ] using lt_wf_ind => x Hk A.
     (* induction on nonterminal *)
-    have Hwf : wf (flip (succ G)) by apply acyclic_succ_flip_wf.
+    have Hwf : wf (flip (succ G)) by apply acyclic_prec_wf.
     induction A as [A IHA] using (well_founded_induction Hwf).
     (* rewrite definition *)
     rewrite HΦ; [|done..]. setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
@@ -254,10 +256,10 @@ Section encoding.
         (B = S ∧ x = 0 ∧ δ = k) ∨
         (∃ A φ, A ↦ unary B φ ∈ G ∧ can_reach_from m A x δ ∧ Φ_apply₁ φ x δ k m) ∨
         (∃ A B' φ δ', x + δ + δ' ≤ k ∧ A ↦ binary B B' φ ∈ G ∧ can_reach_from m A x (δ + δ') ∧
-          (if bool_decide (δ' = 0) then G ⊨ B' ⇒ [] else can_derive m B' (x + δ) δ') ∧
+          (if bool_decide (δ' = 0) then G ⊨ B' => [] else can_derive m B' (x + δ) δ') ∧
           Φ_apply₂ φ x δ (x + δ) δ' k m) ∨
         (∃ A B' φ δ', δ' ≤ x ∧ A ↦ binary B' B φ ∈ G ∧ can_reach_from m A (x - δ') (δ' + δ) ∧
-          (if bool_decide (δ' = 0) then G ⊨ B' ⇒ [] else can_derive m B' (x - δ') δ') ∧
+          (if bool_decide (δ' = 0) then G ⊨ B' => [] else can_derive m B' (x - δ') δ') ∧
           Φ_apply₂ φ (x - δ') δ' x δ k m)
       ).
 
@@ -266,11 +268,11 @@ Section encoding.
       (B = S ∧ k = 0) ∨
       (∃ A φ, A ↦ unary B φ ∈ G ∧ ε_can_reach_from m A) ∨
       (∃ A B' φ, A ↦ binary B B' φ ∈ G ∧ (
-        (ε_can_reach_from m A ∧ G ⊨ B' ⇒ []) ∨
+        (ε_can_reach_from m A ∧ G ⊨ B' => []) ∨
         (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧
           can_reach_from m A x δ ∧ can_derive m B' x δ))) ∨
       (∃ A B' φ, A ↦ binary B' B φ ∈ G ∧ (
-        (ε_can_reach_from m A ∧ G ⊨ B' ⇒ []) ∨
+        (ε_can_reach_from m A ∧ G ⊨ B' => []) ∨
         (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧
           can_reach_from m A x δ ∧ can_derive m B' x δ)))
     ).
@@ -427,7 +429,7 @@ Section encoding.
       case_bool_decide; subst.
       * eapply reachable_from_left; eauto.
         rewrite app_nil_r. apply IHB.
-        2: by rewrite Nat.add_0_r in H4.
+        2: by rewrite Nat.add_0_r in H2.
         eapply succ_left; eauto.
       * eapply reachable_from_left; eauto.
         2: eapply Φ_derive_spec; eauto; lia.
@@ -525,11 +527,11 @@ Section encoding.
     | using_ε => λ k m, δ = 0
     | using_atom a => λ k m, δ = 1 ∧ term m x = a
     | using_unary B φ => λ k m,
-      if bool_decide (δ = 0) then G ⊨ B ⇒ []
+      if bool_decide (δ = 0) then G ⊨ B => []
       else Φ_apply₁ φ x δ k m ∧ can_derive m B x δ
     | using_binary Bl Br φ δ' => λ k m,
-      (if bool_decide (δ' = 0) then G ⊨ Bl ⇒ [] else can_derive m Bl x δ') ∧
-      (if bool_decide (δ - δ' = 0) then G ⊨ Br ⇒ [] else can_derive m Br (x + δ') (δ - δ')) ∧
+      (if bool_decide (δ' = 0) then G ⊨ Bl => [] else can_derive m Bl x δ') ∧
+      (if bool_decide (δ - δ' = 0) then G ⊨ Br => [] else can_derive m Br (x + δ') (δ - δ')) ∧
       Φ_apply₂ φ x δ' (x + δ') (δ - δ') k m
     end.
 
@@ -633,8 +635,8 @@ Section encoding.
       * simpl. intros Heq. subst. rewrite Heq in Hψ2.
         eapply unary_clause_predicate_unique in Hψ1; [|exact Hψ2].
         congruence.
-      * simpl. intros [Heq1 [Heq2 ?]]. subst. rewrite Heq1 Heq2 in H3.
-        eapply binary_clause_predicate_unique in H3; [|exact H4].
+      * simpl. intros [Heq1 [Heq2 ?]]. subst. rewrite Heq1 Heq2 in H1.
+        eapply binary_clause_predicate_unique in H1; [|exact H2].
         have Heq : slice (decode m k) x n4 = slice (decode m k) x n1 by congruence.
         apply slice_eq_inv in Heq => //. 2-3: rewrite decode_length; lia.
         congruence.

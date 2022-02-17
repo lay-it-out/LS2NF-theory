@@ -4,14 +4,16 @@ From ambig Require Import grammar sub_derive.
 
 Section ambiguity.
 
-  Variable Σ N : Type.
-  Implicit Type t s T : tree Σ N.
+  Context {Σ N : Type}.
+  Implicit Type t s T : @tree Σ N.
+
+  Open Scope grammar_scope.
 
   (* similarity *)
 
   (* assume input trees have same root and word *)
 
-  Definition similar (t1 t2 : tree Σ N) : Prop :=
+  Definition similar t1 t2 : Prop :=
     match t1, t2 with
     | ε_tree _, ε_tree _ => True
     | token_tree R1 tk1, token_tree R2 tk2 => tk1 = tk2
@@ -28,13 +30,14 @@ Section ambiguity.
     destruct t => //=.
   Qed.
 
+  Context `{!EqDecision Σ} `{!EqDecision N}.
+  Context (G : grammar Σ N).
+  
+  (* standard notion of ambiguity *)
+  Definition derive_amb A w : Prop :=
+    ∃ t1 t2, t1 ▷ A ={G}=> w ∧ t2 ▷ A ={G}=> w ∧ t1 ≠ t2.
+
   (* local ambiguity *)
-
-  Variable G : grammar Σ N.
-
-  Context `{EqDecision Σ}.
-  Context `{EqDecision N}.
-
   Definition local_amb A w : Prop :=
     ∃ H h, reachable G (A, w) (H, h) ∧
       ∃ t1 t2, t1 ▷ H ={G}=> h ∧ t2 ▷ H ={G}=> h ∧ ¬ (similar t1 t2).
@@ -43,7 +46,7 @@ Section ambiguity.
 
   (* first direction : local ambiguous -> derivation ambiguous *)
 
-  Fixpoint subst T t s : option (tree Σ N) :=
+  Fixpoint subst T t s :=
     match T with
     | unary_tree A t1 =>
       if bool_decide (T = t) then Some s else
@@ -129,7 +132,7 @@ Section ambiguity.
   Qed.
 
   Lemma local_amb_implies_derive_amb A w :
-    local_amb A w → derive_amb G A w.
+    local_amb A w → derive_amb A w.
   Proof.
     intros [H [h [Hr [t1 [t2 [Ht1 [Ht2 Hnot]]]]]]].
     apply reachable_spec in Hr; last by exists t1.
@@ -146,7 +149,7 @@ Section ambiguity.
   (* second direction : derivation ambiguous -> local ambiguous *)
 
   (* diff two trees with same root and sentence *)
-  Fixpoint diff t1 t2 : option (tree Σ N * tree Σ N) :=
+  Fixpoint diff t1 t2 :=
     match t1, t2 with
     | ε_tree _, ε_tree _ => None
     | token_tree _ _, token_tree _ _ =>
@@ -248,7 +251,7 @@ Section ambiguity.
   Qed.
 
   Lemma derive_amb_implies_local_amb A w :
-    derive_amb G A w → local_amb A w.
+    derive_amb A w → local_amb A w.
   Proof.
     intros [t1 [t2 [[Hr1 [Hw1 ?]] [[? [? ?]] ?]]]].
     have [[t1' t2'] Hdiff] : is_Some (diff t1 t2).
@@ -274,7 +277,7 @@ Section ambiguity.
   (* To sum up *)
 
   Theorem derive_amb_iff_local_amb A w :
-    derive_amb G A w ↔ local_amb A w.
+    derive_amb A w ↔ local_amb A w.
   Proof.
     split; [ apply derive_amb_implies_local_amb
            | apply local_amb_implies_derive_amb ].
