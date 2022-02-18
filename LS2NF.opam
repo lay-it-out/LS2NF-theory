@@ -1,6 +1,6 @@
 opam-version: "2.0"
-name: "ambig"
-synopsis: "Ambiguity theory"
+name: "LS2NF"
+synopsis: "Meta-theories on LS2NF and ambiguity encoding"
 
 depends: [
   "coq" { (>= "8.13.2" & < "8.14~") }

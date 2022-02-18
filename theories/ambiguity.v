@@ -1,6 +1,6 @@
 From Coq Require Import ssreflect.
 From stdpp Require Import prelude.
-From ambig Require Import grammar sub_derive.
+From LS2NF Require Import grammar sub_derive.
 
 Section ambiguity.
 

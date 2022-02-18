@@ -1,6 +1,6 @@
 From stdpp Require Import relations finite.
 From Coq Require Import ssreflect.
-From ambig Require Import grammar acyclic_wf.
+From LS2NF Require Import grammar acyclic_wf.
 
 Section acyclic.
 

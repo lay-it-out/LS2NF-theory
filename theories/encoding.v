@@ -1,6 +1,6 @@
 From stdpp Require Import prelude sorting finite.
 From Coq Require Import ssreflect.
-From ambig Require Import grammar util ambiguity acyclic sub_derive slice derivation witness.
+From LS2NF Require Import grammar util ambiguity acyclic sub_derive slice derivation witness.
 
 Section encoding.
 

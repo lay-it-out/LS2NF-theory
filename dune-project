@@ -1,3 +1,3 @@
 (lang dune 2.7)
-(name ambig)
+(name LS2NF)
 (using coq 0.2)

@@ -1,6 +1,6 @@
 From stdpp Require Import relations list.
 From Coq Require Import ssreflect.
-From ambig Require Import grammar.
+From LS2NF Require Import grammar.
 
 Section derivation.
 
