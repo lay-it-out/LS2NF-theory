@@ -11,7 +11,7 @@ On Mac OS, you may install `opam` via `brew install opam` if you use Homebrew.
 
 First add iris-dev repository and create a local opam switch:
 ```sh
-opam repository add iris-dev https://gitlab.mpi-sws.org/FP/opam-dev.git --set-default      # resolve coq-stdpp dev versions
+opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
 opam switch create . ocaml-base-compiler.4.12.0
 ```
 Enter `y` when opam asks you to install the dependencies. This step can take a while.
