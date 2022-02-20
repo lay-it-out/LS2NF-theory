@@ -26,8 +26,7 @@ Section ambiguity.
   Lemma similar_refl :
     Reflexive similar.
   Proof.
-    move => t.
-    destruct t => //=.
+    intros t. by destruct t.
   Qed.
 
   Context `{!EqDecision Σ} `{!EqDecision N}.
@@ -42,93 +41,93 @@ Section ambiguity.
     ∃ H h, reachable G (A, w) (H, h) ∧
       ∃ t1 t2, t1 ▷ H ={G}=> h ∧ t2 ▷ H ={G}=> h ∧ ¬ (similar t1 t2).
 
-  Ltac invert H := inversion H; subst; clear H.
-
   (* first direction : local ambiguous -> derivation ambiguous *)
 
-  Fixpoint subst T t s :=
+  Fixpoint replace T t s :=
     match T with
     | unary_tree A t1 =>
       if bool_decide (T = t) then Some s else
-      t1' ← subst t1 t s; Some (unary_tree A t1')
+      t1' ← replace t1 t s; Some (unary_tree A t1')
     | binary_tree A tl tr =>
       if bool_decide (T = t) then Some s else
-      match subst tl t s with
+      match replace tl t s with
       | Some tl' => Some (binary_tree A tl' tr)
-      | None => tr' ← subst tr t s; Some (binary_tree A tl tr')
+      | None => tr' ← replace tr t s; Some (binary_tree A tl tr')
       end
     | _ => if bool_decide (T = t) then Some s else None
     end.
 
-  Ltac push_bind :=
-    match goal with 
-    | [ |- context [ ?x ≫= _ ] ] => destruct x; simpl
+  Lemma bind_Some_is_Some A B (f : A → B) mx :
+    is_Some (mx ≫= (λ x, Some (f x))) ↔ is_Some mx.
+  Proof.
+    unfold is_Some. setoid_rewrite bind_Some. naive_solver.
+  Qed.
+
+  Lemma replace_Some T t s :
+    subtree t T → is_Some (replace T t s).
+  Proof.
+    induction T as [?|??|?? IHt|?? IHt1 ? IHt2] => Ht /=.
+    - apply subtree_ε_inv in Ht as ->. by case_bool_decide.
+    - apply subtree_token_inv in Ht as ->. by case_bool_decide.
+    - apply subtree_unary_inv in Ht as [->|?]; case_bool_decide => //.
+      apply bind_Some_is_Some. by apply IHt.
+    - apply subtree_binary_inv in Ht as [->|[Ht|Ht]]; case_bool_decide => //; case_match => //.
+      + apply IHt1 in Ht. by invert Ht.
+      + apply bind_Some_is_Some. by apply IHt2.
+  Qed.
+
+  Local Ltac simpl_bind_eq_Some :=
+    repeat match goal with
+    | |- Some _ = Some _ → _ =>
+      let H := fresh in intros H; apply Some_inj in H; revert H
+    | |- _ ≫= (λ _, Some _) = Some _ → _ =>
+      let H := fresh in rewrite bind_Some; intros [? [? H]]; revert H
+    | |- (_, _) = (_, _) → _ => inversion 1; subst
+    | |- _ = _ → _ => intros ?; subst
     end.
 
-  Lemma subst_Some T t s :
-    subtree t T → is_Some (subst T t s).
+  Lemma replace_id T t s :
+    replace T t s = Some T → s = t.
   Proof.
-    intros Ht.
     induction T => /=.
-    1: apply subtree_ε_inv in Ht.
-    2: apply subtree_token_inv in Ht.
-    3: apply subtree_unary_inv in Ht.
-    4: apply subtree_binary_inv in Ht.
-    all: repeat case_bool_decide.
-    all: repeat case_match.
-    all: repeat push_bind.
+    all: case_bool_decide; try case_match; simpl_bind_eq_Some => //.
     all: naive_solver.
   Qed.
 
-  Lemma subst_id T t s :
-    subst T t s = Some T → s = t.
-  Proof.
-    induction T => /=.
-    all: repeat case_bool_decide => //=.
-    all: repeat case_match.
-    all: repeat push_bind.
-    all: naive_solver.
-  Qed.
-
-  Lemma subst_witness T t s T' A w H h :
+  Lemma replace_witness T t s T' A w H h :
     T ▷ A ={G}=> w →
     t ▷ H ={G}=> h →
     s ▷ H ={G}=> h →
-    subst T t s = Some T' →
+    replace T t s = Some T' →
     T' ▷ A ={G}=> w.
   Proof.
-    intros [? [? ?]] [? [? ?]] Hs.
-    generalize dependent A.
-    generalize dependent w.
+    intros [? [? HT]] [? [? ?]] ?.
     generalize dependent T'.
-    induction T => T' w ? A ? /=.
-    all: repeat case_bool_decide => //=.
-    all: repeat case_match.
-    all: repeat push_bind.
-    all: inversion 1; subst => //.
-    - invert H2.
-      have [Hr [Hw ?]] : t0 ▷ (root T) ={ G }=> (word T) by naive_solver.
-      repeat split => //. econstructor => //. by rewrite Hr. by rewrite Hw.
-    - invert H2.
-      have [Hr [Hw ?]] : t0 ▷ (root T1) ={ G }=> (word T1) by naive_solver.
-      repeat split => //. simpl. by rewrite Hw.
-      econstructor => //. by rewrite Hr. by rewrite Hw.
-    - invert H2.
-      have [Hr [Hw ?]] : t0 ▷ (root T2) ={ G }=> (word T2) by naive_solver.
-      repeat split => //. simpl. by rewrite Hw.
-      econstructor => //. by rewrite Hr. by rewrite Hw.
+    generalize dependent w.
+    generalize dependent A.
+    induction T as [?|??|? ? IHT|?? IHT1 ? IHT2] => T' w ? A ? /=.
+    all: case_bool_decide; try case_match; simpl_bind_eq_Some => //=.
+    all: invert HT.
+    - specialize (IHT (ltac:(done)) _ (ltac:(reflexivity)) _ (ltac:(reflexivity)) _ (ltac:(done))) as [Hr [Hw ?]].
+      repeat split => //=.
+      econstructor => //; rewrite ?Hr ?Hw; eauto.
+    - specialize (IHT1 (ltac:(done)) _ (ltac:(reflexivity)) _ (ltac:(reflexivity)) _ (ltac:(done))) as [Hr [Hw ?]].
+      repeat split => //=. { by rewrite Hw. }
+      econstructor => //; rewrite ?Hr ?Hw; eauto.
+    - specialize (IHT2 (ltac:(done)) _ (ltac:(reflexivity)) _ (ltac:(reflexivity)) _ (ltac:(done))) as [Hr [Hw ?]].
+      repeat split => //=. { by rewrite Hw. }
+      econstructor => //; rewrite ?Hr ?Hw; eauto.
   Qed.
 
-  Lemma subst_subtree T t s T' :
-    subst T t s = Some T' → subtree s T'.
+  Lemma replace_subtree T t s T' :
+    replace T t s = Some T' → subtree s T'.
   Proof.
     generalize dependent T'.
-    induction T => T' /=.
-    all: repeat case_bool_decide => //=.
-    all: repeat case_match.
-    all: repeat push_bind.
-    all: inversion 1; subst => //.
-    all: apply rtc_r with (y := t0); [naive_solver | constructor].
+    induction T as [?|??|?? IHt|?? IHt1 ? IHt2] => T' /=.
+    all: case_bool_decide; try case_match; simpl_bind_eq_Some => //=.
+    - eapply rtc_r; first by apply IHt. constructor.
+    - eapply rtc_r; first by apply IHt1. constructor.
+    - eapply rtc_r; first by apply IHt2. constructor.
   Qed.
 
   Lemma local_amb_implies_derive_amb A w :
@@ -137,12 +136,11 @@ Section ambiguity.
     intros [H [h [Hr [t1 [t2 [Ht1 [Ht2 Hnot]]]]]]].
     apply reachable_spec in Hr; last by exists t1.
     specialize (Hr _ Ht1) as [t [Ht Hsub]].
-    edestruct (subst_Some _ _ t2 Hsub) as [t' ?].
-    exists t', t. split; last split.
-    - eapply subst_witness. apply Ht. apply Ht1. apply Ht2. eauto.
-    - done.
+    edestruct (replace_Some _ _ t2 Hsub) as [t' ?].
+    exists t', t. split; last (split; first done).
+    - eapply replace_witness; last done. all: done.
     - intros <-.
-      have ? : t2 = t1 by eapply subst_id; eauto.
+      have ? : t2 = t1 by eapply replace_id; eauto.
       subst. apply Hnot, similar_refl.
   Qed.
 
@@ -179,23 +177,13 @@ Section ambiguity.
     intros. split.
     - intros <-.
       induction t1 => //=.
-      + case_bool_decide => //. by apply IHt1.
-      + case_bool_decide => //=.
-        * rewrite IHt1_1 => //. rewrite IHt1_2 => //.
-        * exfalso. naive_solver.
+      all: case_bool_decide => //; try case_match; eauto.
+      naive_solver.
     - generalize dependent t2.
       induction t1 => t2.
-      all: destruct t2 => Hr Hw Hdiff //=.
-      1,2: naive_solver.
-      + simpl in Hr; subst.
-        simpl in Hdiff. case_bool_decide => //.
-        erewrite IHt1; eauto.
-      + simpl in Hr; subst.
-        simpl in Hdiff. case_bool_decide => //.
-        case_match => //.
-        erewrite (IHt1_1 t2_1).
-        erewrite (IHt1_2 t2_2).
-        all: eauto; naive_solver.
+      all: destruct t2 => //=; do 2 (inversion 1; subst).
+      all: try case_bool_decide; try case_match => //=.
+      all: inversion 1; subst; try done; naive_solver.
   Qed.
 
   Lemma diff_Some_inv t1 t2 t1' t2' :
@@ -205,49 +193,37 @@ Section ambiguity.
     root t1' = root t2' ∧ word t1' = word t2'.
   Proof.
     generalize dependent t2.
-    induction t1 => t2.
-    all: destruct t2 => //= -> Hw Hdiff.
-    all: inversion Hdiff; subst; clear Hdiff => //.
-    - case_bool_decide.
-      * eapply IHt1; eauto.
-      * inversion H0; subst; clear H0. done.
-    - case_bool_decide; first case_match.
-      * naive_solver.
-      * destruct H as [? [? ?]]. eapply (IHt1_2 t2_2); eauto.
-        rewrite H2 in Hw. by eapply app_inv_head_iff.
-      * naive_solver.
+    induction t1 as [?|??|?? IHt|? t11 IHt1 t12 IHt2] => t2.
+    all: destruct t2 as [?|??|??|? t21 t22] => //= -> Hw.
+    all: try case_bool_decide; try case_match.
+    all: simpl_bind_eq_Some => //.
+    3: have Heq : word t11 = word t21 by naive_solver.
+    3: rewrite Heq in Hw.
+    all: naive_solver.
   Qed.
 
   Lemma diff_result_not_similar t1 t2 t1' t2' :
     diff t1 t2 = Some (t1', t2') → ¬ (similar t1' t2').
   Proof.
     generalize dependent t2.
-    induction t1 => t2.
-    all: destruct t2 => //= Hdiff.
-    all: inversion Hdiff; subst; clear Hdiff.
-    all: try naive_solver.
-    - case_bool_decide; naive_solver.
-    - case_bool_decide; first case_match; naive_solver.
+    induction t1 => t2 /=.
+    all: repeat case_match; try case_bool_decide => //.
+    all: simpl_bind_eq_Some => //=.
+    all: naive_solver.
   Qed.
 
   Lemma diff_result_subtree t1 t2 t1' t2' :
     diff t1 t2 = Some (t1', t2') → subtree t1' t1 ∧ subtree t2' t2.
   Proof.
     generalize dependent t2.
-    induction t1 => t2.
-    all: destruct t2 => //= Hdiff.
-    all: inversion Hdiff; subst; clear Hdiff.
-    all: try by split; constructor.
-    - case_bool_decide.
-      * edestruct IHt1; eauto. split; etrans; eauto.
-        all: apply rtc_once; constructor.
-      * inversion H0; subst. split; by constructor.
-    - case_bool_decide; first case_match.
-      * edestruct (IHt1_1 t2_1); eauto; try congruence. split; etrans; eauto.
-        all: apply rtc_once; constructor.
-      * edestruct (IHt1_2 t2_2); eauto. split; etrans; eauto.
-        all: apply rtc_once; constructor.
-      * inversion H0; subst. split; by constructor.
+    induction t1 as [?|??|?? IHt|?? IHt1 ? IHt2] => t2 /=.
+    all: repeat case_match; try case_bool_decide => //.
+    all: simpl_bind_eq_Some => //=.
+    1: edestruct IHt; eauto.
+    2: edestruct IHt1; eauto.
+    3: edestruct IHt2; eauto.
+    all: split; etrans; eauto.
+    all: apply rtc_once; constructor.
   Qed.
 
   Lemma derive_amb_implies_local_amb A w :
@@ -263,9 +239,9 @@ Section ambiguity.
     exists (root t1'), (word t1'). split.
     - apply reachable_spec; first by exists t1'.
       intros t' Ht'.
-      edestruct (subst_Some _ _ t' Hsub1) as [T ?].
-      exists T. split; last eapply subst_subtree; eauto.
-      eapply subst_witness. 2: apply Ht1'. 2: apply Ht'. 2: eauto.
+      edestruct (replace_Some _ _ t' Hsub1) as [T ?].
+      exists T. split; last eapply replace_subtree; eauto.
+      eapply replace_witness. 2: apply Ht1'. 2: apply Ht'. 2: eauto.
       by repeat split.
     - exists t1', t2'.
       have [? ?] : root t1' = root t2' ∧ word t1' = word t2'.

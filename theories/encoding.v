@@ -63,12 +63,12 @@ Section encoding.
     decode (encode S w) (length w) = w.
   Proof.
     apply list_eq_same_length with (n := length w) => //.
-    1: by rewrite decode_length.
+    { by rewrite decode_length. }
     intros i x y ?. rewrite decode_lookup //=. repeat case_match.
-    - inversion 1; subst. intros Hy.
-      have Heq : Some (token @ (n, n0)) = Some y by rewrite -Hy; symmetry.
-      by inversion Heq.
-    - rewrite Heqo. inversion 2.
+    all: intros ?; match goal with
+    | H : ?x = _ |- ?x = _ → _ => rewrite H
+    end => //.
+    congruence.
   Qed.
 
   Implicit Type w : sentence Σ.
@@ -80,12 +80,12 @@ Section encoding.
   Lemma well_formed_no_dup w : NoDup w.
   Proof.
     have := (sentence_well_formed w).
-    induction w => Hwf; constructor.
+    induction w as [|a w IHw] => Hwf; constructor.
     - apply Sorted_extends in Hwf. 2: apply pos_token_lt_trans.
       rewrite ->Forall_forall in Hwf.
       intros Hin. specialize (Hwf _ Hin). destruct a as [? [x y]].
       unfold pos_token_lt in Hwf. simpl in Hwf. lia.
-    - inversion Hwf; subst; clear Hwf. eauto.
+    - invert Hwf. eauto.
   Qed.
 
   Hint Resolve well_formed_no_dup : core.
@@ -138,7 +138,7 @@ Section encoding.
     - split.
       + intros [a [p [Hw ?]]]. exists a.
         apply slice_singleton_iff in Hw as [-> Hw] => //.
-       repeat split => //=. by rewrite Hw.
+        repeat split => //=. by rewrite Hw.
       + intros [a [? [? Hw]]].
         have [? Hx] : is_Some (w !! x) by apply lookup_lt_is_Some; lia.
         simpl in Hw. rewrite Hx in Hw. case_match; subst.
@@ -229,7 +229,7 @@ Section encoding.
         * destruct Hd as [δ' [? [? [? ?]]]].
           exists Bl, Br, φ. split; first done.
           do 2 eexists. repeat split; eauto.
-          1: rewrite -slice_split; [lia | done].
+          { rewrite -slice_split; [lia | done]. }
           all: apply IHδ => //; lia.
       + intros [Bl [Br [φ [? [w1 [w2 [Hw [Hφ [HBl HBr]]]]]]]]].
         have Hl : length (w1 ++ w2) = δ.
@@ -429,11 +429,11 @@ Section encoding.
       case_bool_decide; subst.
       * eapply reachable_from_left; eauto.
         rewrite app_nil_r. apply IHB.
-        2: by rewrite Nat.add_0_r in H2.
-        eapply succ_left; eauto.
+        { eapply succ_left; eauto. }
+        have -> : δ = δ + 0 by lia. done.
       * eapply reachable_from_left; eauto.
-        2: eapply Φ_derive_spec; eauto; lia.
         rewrite slice_app_1. apply IHδ => //; lia.
+        { eapply Φ_derive_spec; eauto; lia. }
     - destruct Hr as [A [B' [φ [δ' [? [? [Hr [? ?]]]]]]]].
       case_bool_decide; subst; eapply reachable_from_right; eauto.
       * rewrite Nat.sub_0_r Nat.add_0_l in Hr. rewrite app_nil_l.
@@ -506,8 +506,8 @@ Section encoding.
     - (* -> *)
       intros [α [Hin ?]]. repeat case_match => //.
       all: repeat match goal with
-      | [H : _ ∈ [_] |- _ ] => apply elem_of_list_singleton in H; inversion H; subst; clear H
-      | [H : _ ∈ _ <$> _ |- _ ] => apply elem_of_list_fmap in H as [x [H Hx]]; inversion H; subst; clear H
+      | [H : _ ∈ [_] |- _ ] => apply elem_of_list_singleton in H; invert H
+      | [H : _ ∈ _ <$> _ |- _ ] => apply elem_of_list_fmap in H as [x [H Hx]]; invert H
       end => //.
       split => //. apply elem_of_app in Hx as [|Hx].
       * suff : x < δ by lia. by apply index_range_elem_of.
@@ -597,18 +597,24 @@ Section encoding.
       ∃ ψ2, ψ2 ∈ usable_clauses A δ ∧
         ψ1 ≠ ψ2 ∧ Φ_using_derive ψ1 x δ k m ∧ Φ_using_derive ψ2 x δ k m.
 
-  Lemma wrap_with_id (P : Prop) :
-    P ↔ id P.
-  Proof. done. Qed.
-
-  Ltac wrap H := apply ->wrap_with_id in H.
-
   Lemma app_length_le_l {A} (l1 l2 l : list A) :
     l1 ++ l2 = l →
     length l1 ≤ length l.
   Proof.
     intros Hl. apply (f_equal length) in Hl. rewrite app_length in Hl. lia.
   Qed.
+
+  Local Lemma wrap_with_id (P : Prop) :
+    P ↔ id P.
+  Proof. done. Qed.
+
+  Local Ltac wrap H := apply ->wrap_with_id in H.
+
+  Local Ltac congruence_by H :=
+    match goal with
+    | H1 : ?x = ?z1, H2 : ?y = ?z2, H : ?x = ?y |- _ =>
+      rewrite H1 in H; rewrite H2 in H
+    end.
 
   Lemma Φ_multi_usable_spec k m x δ A :
     Φ_derive k m →
@@ -624,28 +630,28 @@ Section encoding.
       repeat case_match.
       all: apply elem_of_usable_clauses in Hψ1, Hψ2.
       all: repeat match goal with
-      | [ H : _ ∧ _ |- _ ] => destruct H as [? H]
+      | [ H : _ ∧ _ |- _ ] => destruct H as [H ?]
       | [ H : ∃ _, _ |- _ ] => destruct H as [? H]
       end.
       all: simpl in *; try congruence.
       all: repeat match goal with
       | [ H : ?t ▷ ?A ={?G}=> ?w |- ∃ t, t ▷ ?A ={?G}=> ?w ∧ _ ] =>
         exists t; split; [by apply H|]; clear H
-      end => //.
-      * simpl. intros Heq. subst. rewrite Heq in Hψ2.
+      end => //=.
+      * intros Heq. subst. rewrite Heq in Hψ2.
         eapply unary_clause_predicate_unique in Hψ1; [|exact Hψ2].
-        congruence.
-      * simpl. intros [Heq1 [Heq2 ?]]. subst. rewrite Heq1 Heq2 in H1.
-        eapply binary_clause_predicate_unique in H1; [|exact H2].
-        have Heq : slice (decode m k) x n4 = slice (decode m k) x n1 by congruence.
-        apply slice_eq_inv in Heq => //. 2-3: rewrite decode_length; lia.
+        subst. congruence.
+      * intros [Heq1 [Heq2 Heqw]]. subst. rewrite Heq1 Heq2 in Hψ2.
+        eapply binary_clause_predicate_unique in Hψ1; [|exact Hψ2].
+        subst. congruence_by Heqw.
+        apply slice_eq_inv in Heqw. 2-3: rewrite decode_length; lia.
         congruence.
     - (* <- *)
       intros [t1 [[? [? Ht1]] [t2 [[? [? Ht2]] ?]]]].
-      destruct t1; destruct t2.
+      destruct t1 as [?|??|??|? t11 t12]; destruct t2 as [?|??|??|? t21 t22].
       all: simpl in *; try done; try congruence.
-      all: inversion Ht1; subst; clear Ht1.
-      all: inversion Ht2; subst; clear Ht2.
+      all: invert Ht1.
+      all: invert Ht2.
       all: unfold Φ_multi_usable.
       all: repeat match goal with
       | [ H : ?A ↦ ε ∈ _ |- ∃ ψ, ψ ∈ usable_clauses ?A ?δ ∧ _ ] =>
@@ -666,8 +672,8 @@ Section encoding.
       end.
       all: split; first try congruence.
       12: {
-        intros Heq. inversion Heq; subst; clear Heq.
-        have Hw : word t1_1 ++ word t1_2 = word t2_1 ++ word t2_2 by congruence.
+        intros Heq. invert Heq.
+        have Hw : word t11 ++ word t12 = word t21 ++ word t22 by congruence.
         apply app_inj_1 in Hw => //. naive_solver.
       }
       all: try (split; eapply Φ_using_derive_witness; simpl; eauto).
@@ -679,7 +685,7 @@ Section encoding.
       | [ H : [_] = slice (decode _ _) _ ?δ |- ?δ = 1 ∧ _ = term _ _ ∧ _ ] =>
         rewrite -H; symmetry in H; apply slice_singleton_iff in H; [|by rewrite decode_length];
         let H' := fresh in destruct H as [-> H']; rewrite decode_lookup in H'; [lia|];
-        inversion H'; subst; clear H'; do 2 (split; first done)
+        invert H'; do 2 (split; first done)
       | [ |- ∃ t, root t = root ?t' ∧ _ ] =>
         exists t'; split; first done
       | [ |- ∃ t1 t2, root t1 = root ?t1' ∧ root t2 = root ?t2' ∧ _ ] =>
@@ -727,7 +733,7 @@ Section encoding.
       apply sublist_slice in Hsub as [x [? Hh]].
       exists x, (length (tk :: h)).
       simpl can_reach_from. rewrite -Hh. repeat split => //.
-      1: rewrite cons_length; lia.
+      { rewrite cons_length; lia. }
       eapply Φ_multi_usable_spec; eauto; try congruence.
       rewrite decode_encode -Hh; eauto.
   Qed.

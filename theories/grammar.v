@@ -137,6 +137,8 @@ Global Instance production_elem_of_grammar Σ N : ElemOf (production Σ N) (gram
   end.
 (* So that one can write "A ↦ α ∈ G". *)
 
+Ltac invert H := inversion H; subst; clear H.
+
 Section clauses.
   Context {Σ N : Type}.
   Context (G : grammar Σ N).
@@ -154,7 +156,7 @@ Section clauses.
     unfold elem_of, production_elem_of_grammar.
     rewrite elem_of_list_fmap. intros [? [Heq ?]]. destruct α.
     all: case_match => //.
-    all: inversion Heq; subst; clear Heq => //.
+    all: by invert Heq.
   Qed.
 
   Lemma unary_clause_predicate_unique A B φ φ' :
@@ -177,8 +179,7 @@ Section clauses.
 End clauses.
 
 Section parsing.
-  Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.
-  Context (G : grammar Σ N).
+  Context {Σ N : Type}.
 
   (* Parse tree. *)
   Inductive tree : Type :=
@@ -203,6 +204,8 @@ Section parsing.
     | unary_tree _ t' => word t'
     | binary_tree _ t1 t2 => word t1 ++ word t2
     end.
+
+  Context `{!EqDecision Σ} `{!EqDecision N}.
 
   Fixpoint check_tree_eq t1 t2 : bool :=
     match t1, t2 with
@@ -231,6 +234,8 @@ Section parsing.
     have ? := check_tree_eq_spec t1 t2.
     destruct (check_tree_eq t1 t2); [left | right]; naive_solver.
   Qed.
+
+  Context (G : grammar Σ N).
 
   (* Parse tree validity. *)
   Inductive tree_valid : tree → Prop :=

@@ -4,7 +4,7 @@ From LS2NF Require Import grammar acyclic_wf.
 
 Section acyclic.
 
-  Context {Σ N : Type} `{!EqDecision N} `{!Finite N}.
+  Context {Σ N : Type} `{!EqDecision N}.
   Context (G : grammar Σ N).
 
   Open Scope grammar_scope.
@@ -31,6 +31,8 @@ Section acyclic.
   (* A grammar is acyclic if its graph is acyclic, i.e.
      the `succ` relation is an acyclic relation. *)
   Definition acyclic : Prop := acyclic succ.
+
+  Context `{!Finite N}.
 
   (* Both `prec` and `succ` are well-founded for acyclic grammars. *)
   Lemma acyclic_prec_wf :

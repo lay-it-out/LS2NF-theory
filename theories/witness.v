@@ -29,7 +29,7 @@ Section witness.
     t ▷ root t ={G}=> w ∧ apply₁ φ w = true.
   Proof.
     intros Hp. split.
-    - intros [? [? Ht]]. simpl in *. inversion Ht; subst; clear Ht.
+    - intros [? [? Ht]]. simpl in *. invert Ht.
       eapply unary_clause_predicate_unique in Hp; eauto.
       split => //. naive_solver.
     - intros [[? [? ?]] ?]. subst. repeat split => //. econstructor; eauto.
@@ -41,7 +41,7 @@ Section witness.
     t1 ▷ root t1 ={G}=> word t1 ∧ t2 ▷ root t2 ={G}=> w2 ∧ apply₂ φ (word t1) w2 = true.
   Proof.
     intros Hp. split.
-    - intros [? [? Ht]]. simpl in *. inversion Ht; subst; clear Ht.
+    - intros [? [? Ht]]. simpl in *. invert Ht.
       eapply binary_clause_predicate_unique in Hp; eauto.
       repeat split => //; naive_solver.
     - intros [[? [? ?]] [[? [? ?]] ?]]. subst. repeat split => //. econstructor; eauto.

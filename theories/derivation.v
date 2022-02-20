@@ -34,16 +34,16 @@ Section derivation.
   Proof.
     split.
     - (* -> *)
-      induction 1.
+      induction 1 as [??|????|??????? IH|????????? IH1 ? IH2].
       + exists (ε_tree A).
         repeat split. by constructor.
-      + exists (token_tree A (a @ p)).
+      + eexists (token_tree A _).
         repeat split. by constructor.
-      + destruct IHderivation as [t [? [? ?]]].
+      + destruct IH as [t [? [? ?]]].
         exists (unary_tree A t).
-        repeat split => //=. econstructor; naive_solver.
-      + destruct IHderivation1 as [t1 [? [? ?]]].
-        destruct IHderivation2 as [t2 [? [? ?]]].
+        repeat split => //. econstructor; naive_solver.
+      + destruct IH1 as [t1 [? [? ?]]].
+        destruct IH2 as [t2 [? [? ?]]].
         exists (binary_tree A t1 t2).
         repeat split => //; try naive_solver.
         econstructor; naive_solver.

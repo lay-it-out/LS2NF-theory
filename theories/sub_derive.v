@@ -68,7 +68,7 @@ Section sub_derive.
   Proof.
     intros H. apply rtc_inv_r in H.
     destruct H as [|[T [? Hc]]]; [by left | right].
-    inversion Hc; subst; clear Hc. done.
+    invert Hc. done.
   Qed.
 
   Lemma subtree_binary_inv t' A tl tr :
@@ -77,7 +77,7 @@ Section sub_derive.
   Proof.
     intros H. apply rtc_inv_r in H.
     destruct H as [|[T [? Hc]]]; [by left | right].
-    inversion Hc; subst; clear Hc.
+    invert Hc.
     all: naive_solver.
   Qed.
 
@@ -128,17 +128,18 @@ Section sub_derive.
     (A, w) →₁ (B, v) → sub_derive (A, w) (B, v).
   Proof.
     inversion 1; subst; intros t' [? [? ?]].
-    - exists (unary_tree A t').
-      split; last by apply rtc_once; constructor.
-      repeat split. naive_solver. econstructor; naive_solver.
-    - destruct H6 as [tr [? [? ?]]].
-      exists (binary_tree A t' tr).
-      split; last by apply rtc_once; constructor.
-      repeat split. naive_solver. econstructor; naive_solver.
-    - destruct H6 as [tl [? [? ?]]].
-      exists (binary_tree A tl t').
-      split; last by apply rtc_once; constructor.
-      repeat split. naive_solver. econstructor; naive_solver.
+    all: repeat match goal with
+    | H : _ ⊨ _ => _ |- _ => destruct H as [? [? [? ?]]]
+    end.
+    - exists (unary_tree A t'). split.
+      * repeat split. { naive_solver. } econstructor; naive_solver.
+      * apply rtc_once. constructor.
+    - eexists (binary_tree A t' _). split.
+      * repeat split. { naive_solver. } econstructor; naive_solver.
+      * apply rtc_once. constructor.
+    - eexists (binary_tree A _ t'). split.
+      * repeat split. { naive_solver. } econstructor; naive_solver.
+      * apply rtc_once. constructor.
   Qed.
 
   Lemma reachable_spec A w B v :
@@ -147,26 +148,25 @@ Section sub_derive.
   Proof.
     intros Hv. split.
     - (* -> *)
-      induction 1 as [[]|[] [] []].
+      induction 1 as [[]|[] [] [] H1 ? ?].
       + intros t ?. exists t. split; [done | constructor].
-      + apply step_spec in H. etrans; eauto.
+      + apply step_spec in H1. etrans; eauto.
     - (* <- *)
       intros H. destruct Hv as [t' Ht'].
       specialize (H _ Ht') as [t [? Hsub]].
       generalize dependent w.
       generalize dependent A.
-      induction t => A w [? [? Ht]].
+      induction t as [?|??|?? IHt|?? IHt1 ? IHt2] => A w [? [? Ht]].
       all: apply rtc_inv_r in Hsub as [->|[c [? Hc]]].
       all: try by (have [-> ->] : A = B ∧ v = w by
           destruct Ht' as [? [? ?]]; naive_solver); constructor.
-      all: inversion Hc; subst; clear Hc.
-      all: inversion Ht; subst; clear Ht.
-      + econstructor. eapply step_unary; eauto.
-        by apply IHt.
+      all: invert Hc.
+      all: invert Ht.
+      + econstructor. eapply step_unary; eauto. by apply IHt.
       + econstructor. eapply step_left; eauto.
-        by exists t2. by apply IHt1.
+        { by eexists. } by apply IHt1.
       + econstructor. eapply step_right; eauto.
-        by exists t1. by apply IHt2.
+        { by eexists. } by apply IHt2.
   Qed.
 
   Lemma step_sub A w B v :
@@ -231,7 +231,7 @@ Section sub_derive.
     - (* <- *)
       apply rtc_ind_l. constructor.
       intros [] [] Hst ? ?.
-      inversion Hst; subst; clear Hst.
+      invert Hst.
       + eapply reachable_to_unary; eauto.
       + eapply reachable_to_left; eauto.
       + eapply reachable_to_right; eauto.
@@ -270,7 +270,7 @@ Section sub_derive.
     - (* <- *)
       apply rtc_ind_r. constructor.
       intros [] [] ? Hst ?.
-      inversion Hst; subst; clear Hst.
+      invert Hst.
       + eapply reachable_from_unary; eauto.
       + eapply reachable_from_left; eauto.
       + eapply reachable_from_right; eauto.

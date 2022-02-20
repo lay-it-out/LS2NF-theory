@@ -7,7 +7,7 @@ Section acyclic_wf.
   Lemma tc_refl_ex_loop x :
     tc R x x → ex_loop R x.
   Proof.
-    intros HR. apply ex_loop_tc. cofix IH. econstructor; eauto.
+    intros. apply ex_loop_tc. cofix IH. econstructor; eauto.
   Qed.
 
   Lemma tc_flip x y :
@@ -26,16 +26,16 @@ Section acyclic_wf.
     acyclic R → wf (flip R).
   Proof.
     intros Hno x. apply tc_finite_sn.
-    - intros y Htc. eapply Hno. apply tc_refl_ex_loop; eauto.
-    - unfold pred_finite. eexists => ? ?. apply elem_of_enum.
+    - intros y ?. eapply Hno. apply tc_refl_ex_loop; eauto.
+    - eexists => ? ?. apply elem_of_enum.
   Qed.
 
   Lemma finite_acyclic_wf :
     acyclic R → wf R.
   Proof.
     intros Hno x. apply tc_finite_sn.
-    - intros y Htc. eapply Hno. apply tc_refl_ex_loop, tc_flip; eauto.
-    - unfold pred_finite. eexists => ? ?. apply elem_of_enum.
+    - intros y ?. eapply Hno. apply tc_refl_ex_loop, tc_flip; eauto.
+    - eexists => ? ?. apply elem_of_enum.
   Qed.
 
 End acyclic_wf.
