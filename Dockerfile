@@ -4,4 +4,4 @@ COPY . .
 RUN opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
 RUN OPAMYES=true make builddep
 
-CMD ["/usr/bin/make"]
+ENTRYPOINT ["bash"]
