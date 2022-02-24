@@ -74,22 +74,6 @@ Section encoding.
   Implicit Type w : sentence Σ.
   Implicit Type x δ : nat.
 
-  (* this is our ground truth: ill-formed sentences are not considered *)
-  Axiom sentence_well_formed : ∀ w, well_formed w.
-
-  Lemma well_formed_no_dup w : NoDup w.
-  Proof.
-    have := (sentence_well_formed w).
-    induction w as [|a w IHw] => Hwf; constructor.
-    - apply Sorted_extends in Hwf. 2: apply pos_token_lt_trans.
-      rewrite ->Forall_forall in Hwf.
-      intros Hin. specialize (Hwf _ Hin). destruct a as [? [x y]].
-      unfold pos_token_lt in Hwf. simpl in Hwf. lia.
-    - invert Hwf. eauto.
-  Qed.
-
-  Hint Resolve well_formed_no_dup : core.
-
   (* formula: a predicate over a bounded model *)
 
   Definition formula : Type := nat → model → Prop.
@@ -104,6 +88,47 @@ Section encoding.
   Variable Φ_app₂_spec : ∀ φ x1 δ1 x2 δ2 k m,
     Φ_app₂ φ x1 δ1 x2 δ2 k m ↔
       app₂ φ (slice (decode m k) x1 δ1) (slice (decode m k) x2 δ2) = true.
+
+  (* encoding sentence well-formed-ness *)
+
+  Definition Φ_well_formed : formula := λ k m,
+    ∀ i, 0 ≤ i < k - 1 →
+      line m i < line m (i + 1) ∨ (line m i = line m (i + 1) ∧ col m i < col m (i + 1)).
+
+  Lemma Φ_well_formed_sat X w :
+    well_formed w →
+    Φ_well_formed (length w) (encode X w).
+  Proof.
+    intros Hw i ?. apply Sorted_monotone in Hw; last apply pos_token_lt_trans.
+    have [[a [l1 c1]] Ha] : is_Some (w !! i) by apply lookup_lt_is_Some; lia.
+    have [[b [l2 c2]] Hb] : is_Some (w !! (i + 1)) by apply lookup_lt_is_Some; lia.
+    specialize (Hw _ _ _ _ Ha Hb (ltac:(lia))). unfold pos_token_lt in Hw.
+    simpl in *. by rewrite Ha Hb.
+  Qed.
+
+  Lemma Φ_well_formed_spec k m :
+    Φ_well_formed k m → well_formed (decode m k).
+  Proof.
+    intros HΦ. apply Sorted_monotone; first apply pos_token_lt_trans.
+    apply monotone_trans_alt_spec; first apply pos_token_lt_trans.
+    intros i [a [l1 c1]] [b [l2 c2]] Hi Ha Hb.
+    rewrite decode_length in Hi.
+    rewrite decode_lookup in Ha; [lia|]. invert Ha.
+    rewrite decode_lookup in Hb; [lia|]. invert Hb.
+    unfold pos_token_lt. simpl. apply HΦ. lia.
+  Qed.
+
+  Lemma well_formed_no_dup w : well_formed w → NoDup w.
+  Proof.
+    induction w as [|a w IHw] => Hwf; constructor.
+    - apply Sorted_extends in Hwf. 2: apply pos_token_lt_trans.
+      rewrite ->Forall_forall in Hwf.
+      intros Hin. specialize (Hwf _ Hin). destruct a as [? [x y]].
+      unfold pos_token_lt in Hwf. simpl in Hwf. lia.
+    - invert Hwf. eauto.
+  Qed.
+  
+  Hint Resolve Φ_well_formed_spec well_formed_no_dup : core.
 
   (* encoding derivation *)
 
@@ -123,9 +148,10 @@ Section encoding.
       ).
 
   Lemma Φ_derive_sat X w :
+    well_formed w →
     Φ_derive (length w) (encode X w).
   Proof.
-    intros A x δ ? ?.
+    intros ? A x δ ? ?.
     have Heq : can_derive (encode X w) A x δ ↔ check_derive G A (slice w x δ).
     { rewrite check_derive_spec derivation_spec //. }
     rewrite Heq.
@@ -153,7 +179,7 @@ Section encoding.
         destruct w1 as [|tk1 w1]; last destruct w2.
         * left. rewrite app_nil_l in Hw. by rewrite Hw.
         * right; left. rewrite app_nil_r in Hw. by rewrite Hw.
-        * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2] => //.
+        * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2]; eauto.
           rewrite app_length !cons_length in Hl.
           exists (length (tk1 :: w1)). rewrite -Hw1 -Hw2.
           repeat split => //. all: rewrite cons_length; lia.
@@ -183,11 +209,12 @@ Section encoding.
   Qed.
   
   Lemma Φ_derive_spec k m :
+    Φ_well_formed k m →
     Φ_derive k m →
     ∀ A x δ, 0 < δ → x + δ ≤ k →
       can_derive m A x δ ↔ G ⊨ A => slice (decode m k) x δ.
   Proof.
-    intros HΦ A x δ ? ?.
+    intros ? HΦ A x δ ? ?.
     (* induction on range length *)
     generalize dependent A.
     generalize dependent x.
@@ -240,7 +267,7 @@ Section encoding.
           apply IHA => //. eapply succ_right; eauto. by rewrite Hw.
         * right; left. rewrite app_nil_r in Hw. split => //.
           apply IHA => //. eapply succ_left; eauto. by rewrite Hw.
-        * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2] => //.
+        * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2]; eauto.
           2: rewrite decode_length //.
           rewrite Hw1 in HBl, Hφ. rewrite Hw2 in HBr, Hφ.
           rewrite app_length !cons_length in Hl.
@@ -281,10 +308,11 @@ Section encoding.
     Φ_reach_nonempty S k m ∧ Φ_reach_empty S k m.
 
   Lemma Φ_reach_nonempty_sat X w k :
+    well_formed w →
     length w = k →
     Φ_reach_nonempty X k (encode X w).
   Proof.
-    intros <- B x δ ? ?.
+    intros ? <- B x δ ? ?.
     have Heq : can_reach_from (encode X w) B x δ ↔ check_reachable_from G (X, w) (B, slice w x δ).
     { rewrite check_reachable_from_spec reachable_from_spec //. }
     rewrite Heq /=.
@@ -306,7 +334,7 @@ Section encoding.
           apply sublist_app_slice_NoDup in Hsub as [x' [Hlen [Hx' Hl]]];
             [| eauto | rewrite slice_length; lia | lia].
           rewrite slice_length in Hlen => //.
-          apply slice_eq_inv_NoDup in Hx' as [? Hδ] => //; [|rewrite slice_length; lia..].
+          apply slice_eq_inv_NoDup in Hx' as [? Hδ]; eauto; [|rewrite slice_length; lia..].
           subst. rewrite Hδ in Hl. rewrite -slice_app_1 -Hl.
           repeat split => //.
       + intros [A [B' [φ [δ' [? [? [Hr [Hd Hφ]]]]]]]].
@@ -326,7 +354,7 @@ Section encoding.
           apply sublist_app_slice_NoDup in Hsub as [x' [Hlen [Hx' Hl]]];
             [| eauto | rewrite cons_length; lia | rewrite slice_length; lia].
           rewrite slice_length in Hlen => //. rewrite slice_length in Hl => //.
-          apply slice_eq_inv_NoDup in Hl as [? Hδ] => //; [|rewrite slice_length; lia..].
+          apply slice_eq_inv_NoDup in Hl as [? Hδ]; eauto; [|rewrite slice_length; lia..].
           subst. rewrite Nat.add_sub -slice_app_1 -Hx'.
           repeat split => //. lia.
       + intros [A [B' [φ [δ' [? [? [Hr [Hd Hφ]]]]]]]].
@@ -394,20 +422,22 @@ Section encoding.
   Qed.
 
   Lemma Φ_reach_sat k X w :
+    well_formed w →
     length w = k →
     Φ_reach X k (encode X w).
   Proof.
-    intros <-. split; by [apply Φ_reach_nonempty_sat | apply Φ_reach_empty_sat].
+    intros ? <-. split; by [apply Φ_reach_nonempty_sat | apply Φ_reach_empty_sat].
   Qed.
 
   Lemma Φ_reach_nonempty_spec k S m :
+    Φ_well_formed k m →
     Φ_derive k m →
     Φ_reach_nonempty S k m →
     ∀ B x δ, 0 < δ → x + δ ≤ k →
       can_reach_from m B x δ → (* only this direction is needed *)
       reachable G (S, decode m k) (B, slice (decode m k) x δ).
   Proof.
-    intros HΦ' HΦ B x δ ? ? ?. rewrite -reachable_from_spec.
+    intros ? HΦ' HΦ B x δ ? ? ?. rewrite -reachable_from_spec.
     (* induction on range length *)
     generalize dependent B.
     generalize dependent x.
@@ -443,6 +473,7 @@ Section encoding.
   Qed.
 
   Lemma Φ_reach_empty_spec S k m :
+    Φ_well_formed k m →
     Φ_derive k m →
     Φ_reach_nonempty S k m →
     Φ_reach_empty S k m →
@@ -450,7 +481,7 @@ Section encoding.
       ε_can_reach_from m B → (* only this direction is needed *)
       reachable G (S, decode m k) (B, []).
   Proof.
-    intros ? ? HΦ B. rewrite -reachable_from_spec.
+    intros ? ? ? HΦ B. rewrite -reachable_from_spec.
     (* induction on nonterminal *)
     have Hwf : wf (succ G) by apply acyclic_succ_wf.
     induction B as [B IHB] using (well_founded_induction Hwf).
@@ -536,6 +567,7 @@ Section encoding.
     end.
 
   Lemma Φ_using_derive_witness k m x δ A ψ :
+    Φ_well_formed k m →
     Φ_derive k m →
     x + δ ≤ k →
     ψ ∈ usable_clauses A δ →
@@ -548,7 +580,7 @@ Section encoding.
       word t1 = slice (decode m k) x δ' ∧ (binary_tree A t1 t2) ▷ A ={G}=> slice (decode m k) x δ
     end.
   Proof.
-    intros ? ? Hψ. destruct ψ as [| a | B φ | Bl Br φ δ'] => /=.
+    intros ? ? ? Hψ. destruct ψ as [| a | B φ | Bl Br φ δ'] => /=.
     all: apply elem_of_usable_clauses in Hψ.
     - split; last naive_solver.
       intros ->. split; first done. by apply witness_ε.
@@ -617,6 +649,7 @@ Section encoding.
     end.
 
   Lemma Φ_multi_usable_spec k m x δ A :
+    Φ_well_formed k m →
     Φ_derive k m →
     x + δ ≤ k →
     Φ_multi_usable A x δ k m ↔ ∃ t1, t1 ▷ A ={G}=> slice (decode m k) x δ ∧
@@ -698,14 +731,14 @@ Section encoding.
   (* Main theorems *)
 
   Definition Φ_amb A : formula := λ k m,
-    Φ_derive k m ∧ Φ_reach A k m ∧ ∃ H,
+    Φ_well_formed k m ∧ Φ_derive k m ∧ Φ_reach A k m ∧ ∃ H,
      (ε_can_reach_from m H ∧ Φ_multi_usable H 0 0 k m) ∨
      (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧ can_reach_from m H x δ ∧ Φ_multi_usable H x δ k m).
 
   Theorem Φ_amb_sound A k m :
     Φ_amb A k m → derive_amb G A (decode m k).
   Proof.
-    intros [? [[? ?] [X HX]]].
+    intros [? [? [[? ?] [X HX]]]].
     apply derive_amb_iff_local_amb => //.
     destruct HX as [[? Hm]|[x [δ [? [? [? Hm]]]]]].
     - exists X, []; split; first by apply Φ_reach_empty_spec.
@@ -716,15 +749,16 @@ Section encoding.
   Qed.
 
   Theorem Φ_amb_complete X k w :
-    length w = k → derive_amb G X w → ∃ m, Φ_amb X k m.
+    well_formed w → length w = k → derive_amb G X w → ∃ m, Φ_amb X k m.
   Proof.
-    intros <- Hamb.
+    intros ? <- Hamb.
     apply derive_amb_iff_local_amb in Hamb; eauto.
     destruct Hamb as [C [h [Hr [t1 [t2 [Ht1 [Ht2 Hne]]]]]]].
     exists (encode X w).
-    have HΦ : Φ_derive (length w) (encode X w) by apply Φ_derive_sat.
-    have HΦ' : Φ_reach X (length w) (encode X w) by apply Φ_reach_sat.
-    do 2 (split; first done). exists C.
+    have ? : Φ_well_formed (length w) (encode X w) by apply Φ_well_formed_sat.
+    have ? : Φ_derive (length w) (encode X w) by apply Φ_derive_sat.
+    have ? : Φ_reach X (length w) (encode X w) by apply Φ_reach_sat.
+    do 3 (split; first done). exists C.
     destruct h as [|tk h].
     - left. split; first done.
       eapply Φ_multi_usable_spec; eauto; lia.
@@ -734,7 +768,7 @@ Section encoding.
       exists x, (length (tk :: h)).
       simpl can_reach_from. rewrite -Hh. repeat split => //.
       { rewrite cons_length; lia. }
-      eapply Φ_multi_usable_spec; eauto; try congruence.
+      eapply Φ_multi_usable_spec; eauto.
       rewrite decode_encode -Hh; eauto.
   Qed.
 

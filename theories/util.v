@@ -1,5 +1,7 @@
-From stdpp Require Import relations.
+From stdpp Require Import relations sorting.
 From Coq Require Import ssreflect.
+
+Ltac invert H := inversion H; subst; clear H.
 
 Fixpoint index_range (n : nat) : list nat :=
   match n with
@@ -36,3 +38,64 @@ Proof.
     congruence.
   - intros ?. exists x. by rewrite index_range_lookup.
 Qed.
+
+Section Sorted_lemmas.
+
+  Context {A : Type} (R : relation A).
+
+  Definition monotone (l : list A) : Prop :=
+    ∀ i j x y, l !! i = Some x → l !! j = Some y → i < j → R x y.
+  
+  Context `{!Transitive R}.
+
+  Definition monotone_trans_alt (l : list A) : Prop :=
+    ∀ i x y, i < length l - 1 → l !! i = Some x → l !! (i + 1) = Some y → R x y.
+
+  Lemma monotone_trans_alt_spec l :
+    monotone_trans_alt l → monotone l.
+  Proof.
+    intros Hm i j x y Hx Hy ?.
+    have ? : j < length l by apply lookup_lt_is_Some.
+    have [k ?] : ∃ k : nat, j = i + (1 + k) by exists (j - i - 1); lia. subst.
+    generalize dependent y.
+    induction k as [|k IHk] => y Hy. { eapply (Hm _ _ _ _ Hx Hy). }
+    have [z Hz] : is_Some (l !! (i + (1 + k))) by apply lookup_lt_is_Some; lia.
+    etrans; first by apply IHk; eauto; lia.
+    have Heq : i + (1 + S k) = (i + (1 + k)) + 1 by lia.
+    rewrite Heq in Hy. eapply (Hm _ _ _ _ Hz Hy).
+    Unshelve. all: lia.
+  Qed.
+
+  Lemma Sorted_cons_iff a l :
+    Sorted R (a :: l) ↔ (Sorted R l ∧ HdRel R a l).
+  Proof.
+    split.
+    - by apply Sorted_inv.
+    - intros [? ?]. by apply Sorted_cons.
+  Qed.
+
+  Lemma HdRel_Forall x l :
+    Sorted R l → HdRel R x l → Forall (R x) l.
+  Proof.
+    intros. apply Sorted_extends; eauto.
+  Qed.
+
+  Lemma Sorted_monotone l :
+    Sorted R l ↔ monotone l.
+  Proof.
+    induction l as [|a l IHl] => //.
+    rewrite Sorted_cons_iff.
+    split.
+    - intros [Hm Ha] i j x y Hx Hy ?.
+      destruct i; simpl in Hx.
+      * invert Hx. destruct j; [lia|]. simpl in Hy.
+        apply elem_of_list_lookup_2 in Hy.
+        eapply Forall_forall; last exact Hy. by apply HdRel_Forall.
+      * destruct j; [lia|]. simpl in Hy.
+        apply IHl in Hm. eapply Hm; eauto; lia.
+    - intros Hm. split.
+      * apply IHl. intros i j x y Hx Hy ?. apply (Hm (S i) (S j)) => //. lia.
+      * destruct l as [|b l] => //. constructor. apply (Hm 0 1) => //.
+  Qed.
+
+End Sorted_lemmas.
