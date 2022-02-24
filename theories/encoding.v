@@ -96,14 +96,14 @@ Section encoding.
 
   (* encoding predicate *)
 
-  Variable Φ_apply₁ : (unary_predicate Σ) → nat → nat → formula.
-  Variable Φ_apply₁_spec : ∀ φ x δ k m,
-    Φ_apply₁ φ x δ k m ↔ apply₁ φ (slice (decode m k) x δ) = true.
+  Variable Φ_app₁ : (unary_predicate Σ) → nat → nat → formula.
+  Variable Φ_app₁_spec : ∀ φ x δ k m,
+    Φ_app₁ φ x δ k m ↔ app₁ φ (slice (decode m k) x δ) = true.
 
-  Variable Φ_apply₂ : (binary_predicate Σ) → nat → nat → nat → nat → formula.
-  Variable Φ_apply₂_spec : ∀ φ x1 δ1 x2 δ2 k m,
-    Φ_apply₂ φ x1 δ1 x2 δ2 k m ↔
-      apply₂ φ (slice (decode m k) x1 δ1) (slice (decode m k) x2 δ2) = true.
+  Variable Φ_app₂ : (binary_predicate Σ) → nat → nat → nat → nat → formula.
+  Variable Φ_app₂_spec : ∀ φ x1 δ1 x2 δ2 k m,
+    Φ_app₂ φ x1 δ1 x2 δ2 k m ↔
+      app₂ φ (slice (decode m k) x1 δ1) (slice (decode m k) x2 δ2) = true.
 
   (* encoding derivation *)
 
@@ -112,13 +112,13 @@ Section encoding.
       can_derive m A x δ ↔ (
         False ∨
         (∃ a, A ↦ atom a ∈ G ∧ δ = 1 ∧ term m x = a) ∨
-        (∃ B φ, A ↦ unary B φ ∈ G ∧ Φ_apply₁ φ x δ k m ∧ can_derive m B x δ) ∨
+        (∃ B φ, A ↦ unary B φ ∈ G ∧ Φ_app₁ φ x δ k m ∧ can_derive m B x δ) ∨
         (∃ Bl Br φ, A ↦ binary Bl Br φ ∈ G ∧ (
           (G ⊨ Bl => [] ∧ can_derive m Br x δ) ∨
           (G ⊨ Br => [] ∧ can_derive m Bl x δ) ∨
           (∃ δ', 0 < δ' < δ ∧
             can_derive m Bl x δ' ∧ can_derive m Br (x + δ') (δ - δ') ∧
-            Φ_apply₂ φ x δ' (x + δ') (δ - δ') k m)
+            Φ_app₂ φ x δ' (x + δ') (δ - δ') k m)
         ))
       ).
 
@@ -131,7 +131,7 @@ Section encoding.
     rewrite Heq.
     unfold check_derive. setoid_rewrite derivation_spec.
     simpl can_derive.
-    setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
+    setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
     setoid_rewrite decode_encode.
     repeat apply ZifyClasses.or_morph.
     - rewrite slice_nil_iff; lia.
@@ -196,7 +196,7 @@ Section encoding.
     have Hwf : wf (flip (succ G)) by apply acyclic_prec_wf.
     induction A as [A IHA] using (well_founded_induction Hwf).
     (* rewrite definition *)
-    rewrite HΦ; [|done..]. setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
+    rewrite HΦ; [|done..]. setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
     rewrite -derivation_spec -check_derive_spec /check_derive. setoid_rewrite derivation_spec.
     repeat apply ZifyClasses.or_morph.
     - rewrite slice_nil_iff ?decode_length; lia.
@@ -254,13 +254,13 @@ Section encoding.
     ∀ B x δ, 0 < δ → x + δ ≤ k →
       can_reach_from m B x δ ↔ (
         (B = S ∧ x = 0 ∧ δ = k) ∨
-        (∃ A φ, A ↦ unary B φ ∈ G ∧ can_reach_from m A x δ ∧ Φ_apply₁ φ x δ k m) ∨
+        (∃ A φ, A ↦ unary B φ ∈ G ∧ can_reach_from m A x δ ∧ Φ_app₁ φ x δ k m) ∨
         (∃ A B' φ δ', x + δ + δ' ≤ k ∧ A ↦ binary B B' φ ∈ G ∧ can_reach_from m A x (δ + δ') ∧
           (if bool_decide (δ' = 0) then G ⊨ B' => [] else can_derive m B' (x + δ) δ') ∧
-          Φ_apply₂ φ x δ (x + δ) δ' k m) ∨
+          Φ_app₂ φ x δ (x + δ) δ' k m) ∨
         (∃ A B' φ δ', δ' ≤ x ∧ A ↦ binary B' B φ ∈ G ∧ can_reach_from m A (x - δ') (δ' + δ) ∧
           (if bool_decide (δ' = 0) then G ⊨ B' => [] else can_derive m B' (x - δ') δ') ∧
-          Φ_apply₂ φ (x - δ') δ' x δ k m)
+          Φ_app₂ φ (x - δ') δ' x δ k m)
       ).
 
   Definition Φ_reach_empty S : formula := λ k m,
@@ -289,7 +289,7 @@ Section encoding.
     { rewrite check_reachable_from_spec reachable_from_spec //. }
     rewrite Heq /=.
     setoid_rewrite reachable_from_spec.
-    setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
+    setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
     setoid_rewrite decode_encode.
     repeat apply ZifyClasses.or_morph.
     - rewrite slice_full_iff //. apply list_nonempty_length; lia.
@@ -337,15 +337,15 @@ Section encoding.
   Qed.
 
   Lemma apply_unary_nil (φ : unary_predicate Σ) :
-    apply₁ φ [] = true.
+    app₁ φ [] = true.
   Proof. by destruct φ. Qed.
 
   Lemma apply_binary_nil_l (φ : binary_predicate Σ) w :
-    apply₂ φ [] w = true.
+    app₂ φ [] w = true.
   Proof. destruct φ; naive_solver. Qed.
 
   Lemma apply_binary_nil_r (φ : binary_predicate Σ) w :
-    apply₂ φ w [] = true.
+    app₂ φ w [] = true.
   Proof. destruct φ; naive_solver. Qed.
 
   Lemma Φ_reach_empty_sat k X w :
@@ -417,7 +417,7 @@ Section encoding.
     have Hwf : wf (succ G) by apply acyclic_succ_wf.
     induction B as [B IHB] using (well_founded_induction Hwf).
     rewrite HΦ //.
-    setoid_rewrite Φ_apply₁_spec. setoid_rewrite Φ_apply₂_spec.
+    setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
     intros [Hr|[Hr|[Hr|Hr]]].
     - destruct Hr as [-> [-> ->]].
       rewrite slice_full ?decode_length //.
@@ -528,11 +528,11 @@ Section encoding.
     | using_atom a => λ k m, δ = 1 ∧ term m x = a
     | using_unary B φ => λ k m,
       if bool_decide (δ = 0) then G ⊨ B => []
-      else Φ_apply₁ φ x δ k m ∧ can_derive m B x δ
+      else Φ_app₁ φ x δ k m ∧ can_derive m B x δ
     | using_binary Bl Br φ δ' => λ k m,
       (if bool_decide (δ' = 0) then G ⊨ Bl => [] else can_derive m Bl x δ') ∧
       (if bool_decide (δ - δ' = 0) then G ⊨ Br => [] else can_derive m Br (x + δ') (δ - δ')) ∧
-      Φ_apply₂ φ x δ' (x + δ') (δ - δ') k m
+      Φ_app₂ φ x δ' (x + δ') (δ - δ') k m
     end.
 
   Lemma Φ_using_derive_witness k m x δ A ψ :
@@ -561,13 +561,13 @@ Section encoding.
         * intros [t [? [? ?]]]. subst. exists t.
           rewrite witness_unary; eauto. repeat split => //. apply apply_unary_nil.
         * intros [t [? Ht]]. subst. eapply witness_unary in Ht; eauto. naive_solver.
-      + rewrite Φ_apply₁_spec.
+      + rewrite Φ_app₁_spec.
         rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
         split.
         * intros [? [t [? [? ?]]]]. subst. exists t.
           rewrite witness_unary; eauto. repeat split => //.
         * intros [t [? Ht]]. subst. eapply witness_unary in Ht; eauto. naive_solver.
-    - destruct Hψ as [Hψ ?]. unfold derive. rewrite Φ_apply₂_spec. repeat case_bool_decide.
+    - destruct Hψ as [Hψ ?]. unfold derive. rewrite Φ_app₂_spec. repeat case_bool_decide.
       Ltac finish := split;
         [ intros [[t1 [? [Hw1 ?]]] [[t2 [? [? ?]]] ?]]; subst; exists t1, t2;
           rewrite -{2}Hw1 witness_binary ?Hw1; eauto; repeat split => //

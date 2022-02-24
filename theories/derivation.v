@@ -18,12 +18,12 @@ Section derivation.
     derivation A [a @ p]
   | derive_unary A B φ w :
     A ↦ unary B φ ∈ G →
-    apply₁ φ w = true →
+    app₁ φ w = true →
     derivation B w →
     derivation A w
   | derive_binary A Bl Br φ w1 w2 :
     A ↦ binary Bl Br φ ∈ G →
-    apply₂ φ w1 w2 = true →
+    app₂ φ w1 w2 = true →
     derivation Bl w1 →
     derivation Br w2 →
     derivation A (w1 ++ w2)
@@ -62,9 +62,9 @@ Section derivation.
   Definition check_derive A w : Prop :=
     (w = [] ∧ A ↦ ε ∈ G) ∨
     (∃ a p, w = [a @ p] ∧ A ↦ atom a ∈ G) ∨
-    (∃ B φ, A ↦ unary B φ ∈ G ∧ apply₁ φ w = true ∧ derivation B w) ∨
+    (∃ B φ, A ↦ unary B φ ∈ G ∧ app₁ φ w = true ∧ derivation B w) ∨
     (∃ Bl Br φ, A ↦ binary Bl Br φ ∈ G ∧ ∃ w1 w2, w = w1 ++ w2 ∧
-      apply₂ φ w1 w2 = true ∧ derivation Bl w1 ∧ derivation Br w2)
+      app₂ φ w1 w2 = true ∧ derivation Bl w1 ∧ derivation Br w2)
     .
 
   Lemma check_derive_spec A w :

@@ -104,16 +104,16 @@ Section sub_derive.
   Inductive step : relation sig :=
   | step_unary A B φ w :
     A ↦ unary B φ ∈ G →
-    apply₁ φ w = true →
+    app₁ φ w = true →
     step (A, w) (B, w)
   | step_left A Bl Br φ wl wr :
     A ↦ binary Bl Br φ ∈ G →
-    apply₂ φ wl wr = true →
+    app₂ φ wl wr = true →
     G ⊨ Br => wr →
     step (A, wl ++ wr) (Bl, wl)
   | step_right A Bl Br φ wl wr :
     A ↦ binary Bl Br φ ∈ G →
-    apply₂ φ wl wr = true →
+    app₂ φ wl wr = true →
     G ⊨ Bl => wl →
     step (A, wl ++ wr) (Br, wr)
   .
@@ -204,19 +204,19 @@ Section sub_derive.
   | reachable_to_unary A B w φ :
     A ↦ unary B φ ∈ G →
     reachable_to σ (B, w) →
-    apply₁ φ w = true →
+    app₁ φ w = true →
     reachable_to σ (A, w)
   | reachable_to_left A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_to σ (Bl, w1) →
     G ⊨ Br => w2 →
-    apply₂ φ w1 w2 = true →
+    app₂ φ w1 w2 = true →
     reachable_to σ (A, w1 ++ w2)
   | reachable_to_right A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_to σ (Br, w2) →
     G ⊨ Bl => w1 →
-    apply₂ φ w1 w2 = true →
+    app₂ φ w1 w2 = true →
     reachable_to σ (A, w1 ++ w2)
   .
 
@@ -243,19 +243,19 @@ Section sub_derive.
   | reachable_from_unary A B w φ :
     A ↦ unary B φ ∈ G →
     reachable_from σ (A, w) →
-    apply₁ φ w = true →
+    app₁ φ w = true →
     reachable_from σ (B, w)
   | reachable_from_left A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_from σ (A, w1 ++ w2) →
     G ⊨ Br => w2 →
-    apply₂ φ w1 w2 = true →
+    app₂ φ w1 w2 = true →
     reachable_from σ (Bl, w1)
   | reachable_from_right A Bl w1 Br w2 φ :
     A ↦ binary Bl Br φ ∈ G →
     reachable_from σ (A, w1 ++ w2) →
     G ⊨ Bl => w1 →
-    apply₂ φ w1 w2 = true →
+    app₂ φ w1 w2 = true →
     reachable_from σ (Br, w2)
   .
 
@@ -280,11 +280,11 @@ Section sub_derive.
     match σ, τ with
     | (X, u), (B, w) =>
       (B = X ∧ w = u) ∨
-      (∃ A φ, A ↦ unary B φ ∈ G ∧ reachable_from σ (A, w) ∧ apply₁ φ w = true) ∨
+      (∃ A φ, A ↦ unary B φ ∈ G ∧ reachable_from σ (A, w) ∧ app₁ φ w = true) ∨
       (∃ A B' φ w', A ↦ binary B B' φ ∈ G ∧ reachable_from σ (A, w ++ w') ∧ G ⊨ B' => w' ∧
-        apply₂ φ w w' = true) ∨
+        app₂ φ w w' = true) ∨
       (∃ A B' φ w', A ↦ binary B' B φ ∈ G ∧ reachable_from σ (A, w' ++ w) ∧ G ⊨ B' => w' ∧
-        apply₂ φ w' w = true)
+        app₂ φ w' w = true)
     end.
 
   Lemma check_reachable_from_spec σ τ :

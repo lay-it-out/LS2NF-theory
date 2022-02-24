@@ -83,11 +83,11 @@ Qed.
 
 (* Layout predicates. *)
 Definition unary_predicate (Σ : Type) : Type := {p : sentence Σ → bool & p [] = true}.
-Definition apply₁ {Σ : Type} (φ : unary_predicate Σ) := projT1 φ.
+Definition app₁ {Σ : Type} (φ : unary_predicate Σ) := projT1 φ.
 
 Definition binary_predicate (Σ : Type) : Type :=
   {p : sentence Σ → sentence Σ → bool & ∀ w1 w2, w1 = [] ∨ w2 = [] → p w1 w2 = true}.
-Definition apply₂ {Σ : Type} (φ : binary_predicate Σ) := projT1 φ.
+Definition app₂ {Σ : Type} (φ : binary_predicate Σ) := projT1 φ.
 
 (* Layout-sensitive binary normal form. *)
 Record grammar (Σ N : Type) := {
@@ -248,13 +248,13 @@ Section parsing.
     | valid_unary A t' φ :
       A ↦ unary (root t') φ ∈ G →
       tree_valid t' →
-      apply₁ φ (word t') = true →
+      app₁ φ (word t') = true →
       tree_valid (unary_tree A t')
     | valid_binary A t1 t2 φ :
       A ↦ binary (root t1) (root t2) φ ∈ G →
       tree_valid t1 →
       tree_valid t2 →
-      apply₂ φ (word t1) (word t2) = true →
+      app₂ φ (word t1) (word t2) = true →
       tree_valid (binary_tree A t1 t2)
     .
 

@@ -26,7 +26,7 @@ Section witness.
   Lemma witness_unary A φ t w :
     A ↦ unary (root t) φ ∈ G →
     unary_tree A t ▷ A ={G}=> w ↔
-    t ▷ root t ={G}=> w ∧ apply₁ φ w = true.
+    t ▷ root t ={G}=> w ∧ app₁ φ w = true.
   Proof.
     intros Hp. split.
     - intros [? [? Ht]]. simpl in *. invert Ht.
@@ -38,7 +38,7 @@ Section witness.
   Lemma witness_binary A φ t1 t2 w2 :
     A ↦ binary (root t1) (root t2) φ ∈ G →
     binary_tree A t1 t2 ▷ A ={G}=> (word t1 ++ w2) ↔
-    t1 ▷ root t1 ={G}=> word t1 ∧ t2 ▷ root t2 ={G}=> w2 ∧ apply₂ φ (word t1) w2 = true.
+    t1 ▷ root t1 ={G}=> word t1 ∧ t2 ▷ root t2 ={G}=> w2 ∧ app₂ φ (word t1) w2 = true.
   Proof.
     intros Hp. split.
     - intros [? [? Ht]]. simpl in *. invert Ht.
