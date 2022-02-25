@@ -57,13 +57,11 @@ Section Sorted_lemmas.
     intros Hm i j x y Hx Hy ?.
     have ? : j < length l by apply lookup_lt_is_Some.
     have [k ?] : ∃ k : nat, j = i + (1 + k) by exists (j - i - 1); lia. subst.
-    generalize dependent y.
-    induction k as [|k IHk] => y Hy. { eapply (Hm _ _ _ _ Hx Hy). }
+    generalize dependent y.  
+    induction k as [|k IHk] => y Hy. { apply (Hm i); [lia | done..]. }
     have [z Hz] : is_Some (l !! (i + (1 + k))) by apply lookup_lt_is_Some; lia.
-    etrans; first by apply IHk; eauto; lia.
-    have Heq : i + (1 + S k) = (i + (1 + k)) + 1 by lia.
-    rewrite Heq in Hy. eapply (Hm _ _ _ _ Hz Hy).
-    Unshelve. all: lia.
+    etrans. { apply IHk; eauto; lia. }
+    apply (Hm (i + (1 + k))); [lia|auto..]. rewrite -Hy; f_equal; lia.
   Qed.
 
   Lemma Sorted_cons_iff a l :

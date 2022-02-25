@@ -95,40 +95,43 @@ Section encoding.
     ∀ i, 0 ≤ i < k - 1 →
       line m i < line m (i + 1) ∨ (line m i = line m (i + 1) ∧ col m i < col m (i + 1)).
 
+  Local Hint Resolve pos_token_lt_trans : core.
+  Local Hint Unfold pos_token_lt : core.
+
   Lemma Φ_well_formed_sat X w :
     well_formed w →
     Φ_well_formed (length w) (encode X w).
   Proof.
-    intros Hw i ?. apply Sorted_monotone in Hw; last apply pos_token_lt_trans.
+    intros Hw i ?. apply Sorted_monotone in Hw; eauto.
     have [[a [l1 c1]] Ha] : is_Some (w !! i) by apply lookup_lt_is_Some; lia.
     have [[b [l2 c2]] Hb] : is_Some (w !! (i + 1)) by apply lookup_lt_is_Some; lia.
-    specialize (Hw _ _ _ _ Ha Hb (ltac:(lia))). unfold pos_token_lt in Hw.
+    specialize (Hw _ _ _ _ Ha Hb (ltac:(lia))).
     simpl in *. by rewrite Ha Hb.
   Qed.
 
   Lemma Φ_well_formed_spec k m :
     Φ_well_formed k m → well_formed (decode m k).
   Proof.
-    intros HΦ. apply Sorted_monotone; first apply pos_token_lt_trans.
-    apply monotone_trans_alt_spec; first apply pos_token_lt_trans.
+    intros HΦ. apply Sorted_monotone; eauto.
+    apply monotone_trans_alt_spec; eauto.
     intros i [a [l1 c1]] [b [l2 c2]] Hi Ha Hb.
     rewrite decode_length in Hi.
     rewrite decode_lookup in Ha; [lia|]. invert Ha.
     rewrite decode_lookup in Hb; [lia|]. invert Hb.
-    unfold pos_token_lt. simpl. apply HΦ. lia.
+    apply HΦ. lia.
   Qed.
 
   Lemma well_formed_no_dup w : well_formed w → NoDup w.
   Proof.
     induction w as [|a w IHw] => Hwf; constructor.
-    - apply Sorted_extends in Hwf. 2: apply pos_token_lt_trans.
+    - apply Sorted_extends in Hwf; last apply pos_token_lt_trans.
       rewrite ->Forall_forall in Hwf.
       intros Hin. specialize (Hwf _ Hin). destruct a as [? [x y]].
       unfold pos_token_lt in Hwf. simpl in Hwf. lia.
     - invert Hwf. eauto.
   Qed.
   
-  Hint Resolve Φ_well_formed_spec well_formed_no_dup : core.
+  Local Hint Resolve Φ_well_formed_spec well_formed_no_dup : core.
 
   (* encoding derivation *)
 
@@ -268,11 +271,11 @@ Section encoding.
         * right; left. rewrite app_nil_r in Hw. split => //.
           apply IHA => //. eapply succ_left; eauto. by rewrite Hw.
         * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2]; eauto.
-          2: rewrite decode_length //.
+          all: rewrite ?decode_length //.
           rewrite Hw1 in HBl, Hφ. rewrite Hw2 in HBr, Hφ.
           rewrite app_length !cons_length in Hl.
           exists (length (tk1 :: w1)). repeat split => //.
-          3-4: apply IHδ => //.
+          all: try apply IHδ => //.
           all: rewrite cons_length; lia.
   Qed.
 
