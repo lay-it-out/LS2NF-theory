@@ -1,5 +1,10 @@
 # Layout Sensitive Binary Normal Form (LS2NF) Theories
 
+[![Build][build-badge]][build-link]
+
+[build-badge]: https://github.com/lay-it-out/LS2NF-theory/actions/workflows/build.yml/badge.svg?branch=main
+[build-link]: https://github.com/lay-it-out/LS2NF-theory/actions/workflows/build.yml
+
 This repository contains the Coq formulation on LS2NF proposed in the Lay-it-out paper.
 
 ## Build
