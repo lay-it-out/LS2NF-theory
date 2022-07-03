@@ -11,26 +11,11 @@ This repository contains the Coq formulation on LS2NF proposed in the Lay-it-out
 
 ### Via Docker
 
-If you have `docker` installed, first create an image:
 ```sh
 docker build .
 ```
-The `Dockerfile` will be processed and all dependencies will be downloaded, compiled and installed, which may take a few minutes.
 
-If this succeeds, the last line of std output should display the image ID:
-```
- => => writing image sha256:<Image ID>
-```
-With this ID, you can now run the image and access its shell:
-```sh
-docker run -it <Image ID>
-```
-
-On that shell, compile the Coq proofs by:
-```sh
-coq@<Image ID>:~$ eval $(opam env)
-coq@<Image ID>:~$ make
-```
+This automatically creates an image with all dependencies installed and all Coq files checked.
 
 ### Via OPAM
 
