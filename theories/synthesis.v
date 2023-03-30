@@ -1,5 +1,5 @@
 From stdpp Require Import vector relations.
-From LS2NF Require Import grammar equiv_class.
+From LS2NF Require Import grammar equiv_class util.
 From Coq Require Import ssreflect.
 
 Section synthesis.
@@ -120,24 +120,24 @@ Section synthesis.
   Definition acceptance n (W : vec (sentence Σ) n) (T : vec (@tree Σ N) n) : Prop :=
     ∀ i, T !!! i ▷ A ={ G }=> W !!! i.
 
-  Fixpoint fill_tree t (ps : list (nat * nat)) :=
+  Fixpoint reformat_tree_aux t w :=
     match t with
-    | ε_tree A => (ε_tree A, ps)
+    | ε_tree A => (ε_tree A, w)
     | token_tree A tk =>
-      match ps with
+      match w with
       | [] => (token_tree A tk, [])
-      | p :: ps' => (token_tree A (token tk @ p), ps')
+      | tk' :: w' => (token_tree A tk', w')
       end
     | unary_tree A t =>
-      let (t', ps') := fill_tree t ps in
-      (unary_tree A t', ps')
+      let (t', w') := reformat_tree_aux t w in
+      (unary_tree A t', w')
     | binary_tree A t1 t2 =>
-      let (t1', ps1) := fill_tree t1 ps in
-      let (t2', ps2) := fill_tree t2 ps1 in
-      (binary_tree A t1' t2', ps2)
+      let (t1', w1) := reformat_tree_aux t1 w in
+      let (t2', w2) := reformat_tree_aux t2 w1 in
+      (binary_tree A t1' t2', w2)
     end.
 
-  Definition reformat_tree t w := (fill_tree t (pos <$> w)).1.
+  Definition reformat_tree t w := (reformat_tree_aux t w).1.
 
   Local Lemma destruct_pair_lemma {α β : Type} (p : α * β) a b :
     p = (a, b) → p.1 = a ∧ p.2 = b.
@@ -145,31 +145,73 @@ Section synthesis.
 
   Local Ltac destruct_pair :=
     repeat match goal with
-    | [ H : _ = (_, _) |- _ ] => apply destruct_pair_lemma in H
+    | [ H : _ = (_, _) |- _ ] => apply destruct_pair_lemma in H as [? ?]
     end.
 
-  Lemma fill_tree_iso t l :
-    (fill_tree t l).1 ≡ t.
+  Lemma reformat_tree_aux_consume t w :
+    length (word t) ≤ length w →
+    (reformat_tree_aux t w).2 = drop (length (word t)) w.
   Proof.
-    generalize dependent l.
-    induction t => l /=; repeat case_match; destruct_pair; simplify_eq/=.
-    - apply ε_tree_iso.
-    - by apply token_tree_iso.
-    - by apply token_tree_iso.
-    - apply unary_tree_iso. naive_solver.
-    - apply binary_tree_iso; naive_solver.
+    generalize dependent w. unfold reformat_tree.
+    induction t => w Hp /=; repeat case_match; destruct_pair; simplify_eq/=.
+    all: try naive_solver.
+    rewrite app_length in Hp.
+    rewrite IHt1; first lia.
+    rewrite IHt2; first by rewrite drop_length; lia.
+    by rewrite app_length drop_drop.
   Qed.
 
-  Corollary reformat_tree_iso t w :
-    reformat_tree t w ≡ t.
-  Proof. by apply fill_tree_iso. Qed.
+  Lemma reformat_tree_iso t w :
+    token <$> word t `prefix_of` token <$> w →
+    (reformat_tree t w) ≡ t.
+  Proof.
+    generalize dependent w. unfold reformat_tree.
+    induction t => w Hp /=; repeat case_match; destruct_pair; simplify_eq/=.
+    - apply ε_tree_iso.
+    - by apply token_tree_iso.
+    - apply token_tree_iso. inversion Hp; naive_solver.
+    - apply unary_tree_iso. naive_solver.
+    - apply binary_tree_iso; rewrite fmap_app in Hp.
+      + apply prefix_app_l in Hp. naive_solver.
+      + apply prefix_app_drop in Hp as [Hpl Hpr].
+        rewrite fmap_length -fmap_drop -reformat_tree_aux_consume in Hpr.
+        { apply prefix_length in Hpl. by rewrite !fmap_length in Hpl. }
+        naive_solver.
+  Qed.
+
+  Lemma reformat_tree_word_prefix t w :
+    token <$> word t `prefix_of` token <$> w →
+    word (reformat_tree t w) `prefix_of` w.
+  Proof.
+    generalize dependent w. unfold reformat_tree.
+    induction t => w Hp /=; repeat case_match; destruct_pair; simplify_eq/=.
+    - apply prefix_nil.
+    - inversion Hp; naive_solver.
+    - apply prefix_cons, prefix_nil.
+    - naive_solver.
+    - rewrite fmap_app in Hp. apply prefix_app_drop in Hp as [Hpl Hpr].
+      apply prefix_app_drop. split; first naive_solver.
+      rewrite fmap_length -fmap_drop in Hpr.
+      have ? : length (word t1) ≤ length w.
+      { apply prefix_length in Hpl. by rewrite !fmap_length in Hpl. }
+      rewrite -reformat_tree_aux_consume in Hpr => //.
+      erewrite trees_iso_word_length_eq; last by apply reformat_tree_iso.
+      rewrite -reformat_tree_aux_consume => //.
+      naive_solver.
+  Qed.
 
   Lemma reformat_tree_word t w :
     token <$> word t = token <$> w →
     word (reformat_tree t w) = w.
   Proof.
-    induction t => //=.
-  Admitted.
+    intros Heq. apply prefix_length_eq.
+    - apply reformat_tree_word_prefix. rewrite Heq. apply prefix_refl.
+    - have Heqf : length (token <$> word t) = length (token <$> w) by rewrite Heq.
+      have <- : length (word t) = length w by rewrite !fmap_length in Heqf.
+      suff : length (word t) = length (word (reformat_tree t w)) by lia.
+      apply trees_iso_word_length_eq. symmetry. apply reformat_tree_iso.
+      rewrite Heq. apply prefix_refl.
+  Qed.
 
   Definition rejection n (W : vec (sentence Σ) n) (T : vec (@tree Σ N) n) : Prop :=
     ∀ i j, i ≠ j → ¬ (reformat_tree (T !!! j) (W !!! i) ▷ A ={ G }=> W !!! i).
@@ -185,19 +227,22 @@ Section synthesis.
     synthesis_conditions n W T →
     ∀ i t, t ▷ A ={ G }=> W !!! i → ∀ j, j ≠ i → t ≢ T !!! j.
   Proof.
-    intros ? [Hacc Hrej] i t Ht j ? Hyp.
+    intros Hv [Hacc Hrej] i t Ht j ? Hyp.
     eapply Hrej with (i := i); eauto.
     have -> : reformat_tree (T !!! j) (W !!! i) = t.
     { eapply trees_iso_same_word_eq.
-      - etrans. 2: symmetry; eauto. by apply reformat_tree_iso.
-      - rewrite reformat_tree_word //. 1: by destruct (Hacc j) as [_ [-> _]].
+      - etrans. 2: symmetry; eauto.
+        apply reformat_tree_iso.
+        destruct (Hacc j) as [_ [-> _]].
+        erewrite Hv; apply prefix_refl.
+      - rewrite reformat_tree_word. 1: by destruct (Hacc j) as [_ [-> _]].
         by destruct Ht as [? [? ?]]. }
     done.
   Qed.
 
   Definition sentence_equiv_class := @equiv_class (sentence Σ) sentence_iso.
 
-  Theorem synthesis_conditions_imply_equiv_class_disjoint n W T :
+  Theorem synthesis_conditions_reveal_disjointness n W T :
     valid n W →
     synthesis_conditions n W T →
     ∀ i j l k, i ≠ j →

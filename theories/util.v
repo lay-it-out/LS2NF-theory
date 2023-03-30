@@ -97,3 +97,24 @@ Section Sorted_lemmas.
   Qed.
 
 End Sorted_lemmas.
+
+Section prefix_lemmas.
+  Context {A : Type}.
+  Implicit Type l : list A.
+
+  Lemma prefix_refl l :
+    l `prefix_of` l.
+  Proof. naive_solver. Qed.
+
+  Lemma prefix_app_drop l1 l2 l3 :
+    l1 ++ l2 `prefix_of` l3 ↔
+    l1 `prefix_of` l3 ∧ l2 `prefix_of` drop (length l1) l3.
+  Proof.
+    split => H. 1: split.
+    - by apply prefix_app_l in H.
+    - inversion H; subst. rewrite -app_assoc drop_app. apply prefix_app_r, prefix_refl.
+    - destruct H as [H1 H2]. inversion H1; subst. inversion H2; subst.
+      apply prefix_app. by rewrite drop_app in H2.
+  Qed.
+
+End prefix_lemmas.
