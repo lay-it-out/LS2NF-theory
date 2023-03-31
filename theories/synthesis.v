@@ -86,7 +86,7 @@ Section synthesis.
     (∀ t1, t1 ▷ A ={ G }=> w1 → ∃ t2, t2 ▷ A ={ G }=> w2 ∧ tree_iso t1 t2) ∧
     (∀ t2, t2 ▷ A ={ G }=> w2 → ∃ t1, t1 ▷ A ={ G }=> w1 ∧ tree_iso t1 t2).
 
-  Global Instance sentence_equiv G A : Equiv (sentence Σ) := sentence_iso G A.
+  (* Global Instance sentence_equiv G A : Equiv (sentence Σ) := sentence_iso G A. *)
 
   (* sentence_iso is also an equivalent relation *)
 
@@ -244,7 +244,7 @@ Section synthesis.
 
   Definition sentence_equiv_class G A := @equiv_class (sentence Σ) (sentence_iso G A).
 
-  Theorem sentence_equiv_classes_disjoint G A n W T :
+  Theorem disjointness G A n W T :
     valid n W →
     synthesis_conditions G A n W T →
     ∀ i j l k, i ≠ j →
@@ -258,6 +258,53 @@ Section synthesis.
     destruct (Hi _ (Hacc i)) as [t [Ht ?]].
     eapply tree_not_iso_with_rejected in Hc. 3: apply Ht. all: eauto.
     apply Hc. by symmetry.
-  Qed.  
+  Qed.
+
+  Definition refines G' G : Prop. Admitted.
+
+  Lemma refinement_preserves_witness G G' A t w :
+    refines G' G →
+    t ▷ A ={ G' }=> w →
+    t ▷ A ={ G }=> w.
+  Admitted.
+
+  Lemma iso_reformat_reveals_unique_parse G G' A w n W T :
+    refines G' G →
+    (∀ t, t ▷ A ={ G }=> w → ∃ i, t = T !!! i) →
+    (∀ i, sentence_iso G A (W !!! i) w) →
+    valid n W →
+    synthesis_conditions G' A n W T →
+    ∀ i t, t ▷ A ={ G' }=> W !!! i → t = T !!! i.
+  Proof.
+    intros HG HT Hiso ? Hc i t Ht.
+    assert (HtG := Ht).
+    eapply refinement_preserves_witness in HtG; eauto.
+    destruct (Hiso i) as [Hi _].
+    apply Hi in HtG as [t' [Ht' ?]]. clear Hi.
+    apply HT in Ht' as [k ->].
+    destruct (decide (k = i)) as [->|Hne].
+    - apply trees_iso_same_word_eq; first done.
+      destruct Ht as [_ [-> _]].
+      destruct Hc as [Hacc ?]. by destruct (Hacc i) as [_ [-> _]].
+    - have ? : ¬ tree_iso t (T !!! k)
+        by eapply tree_not_iso_with_rejected; eauto.
+      contradiction.
+  Qed.
+
+  Corollary disambiguation G G' A w n W T :
+    refines G' G →
+    (∀ t, t ▷ A ={ G }=> w → ∃ i, t = T !!! i) →
+    (∀ i, sentence_iso G A (W !!! i) w) →
+    valid n W →
+    synthesis_conditions G' A n W T →
+    ∀ i, ¬ derive_amb G' A (W !!! i).
+  Proof.
+    intros ? ? ? ? ? i [t1 [t2 [Ht1 [Ht2 ?]]]].
+    have ? : t1 = T !!! i
+      by eapply iso_reformat_reveals_unique_parse; eauto.
+    have ? : t2 = T !!! i
+      by eapply iso_reformat_reveals_unique_parse; eauto.
+    congruence.
+  Qed.
 
 End synthesis.
