@@ -100,6 +100,7 @@ Record grammar (Σ N : Type) := {
   binary_clause_predicate : N → N → N → binary_predicate Σ;
 }.
 
+Arguments start {_} {_}.
 Arguments lf_clauses {_} {_}.
 Arguments lf_clauses_no_dup {_} {_}.
 Arguments unary_clause_predicate {_} {_}.

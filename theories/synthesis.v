@@ -1,5 +1,5 @@
 From stdpp Require Import vector relations.
-From LS2NF Require Import grammar ambiguity equiv_class util.
+From LS2NF Require Import grammar equiv_class util refinement ambiguity.
 From Coq Require Import ssreflect.
 
 Section synthesis.
@@ -8,7 +8,7 @@ Section synthesis.
   Implicit Type t : @tree Σ N.
   Implicit Type w : sentence Σ.
 
-  Open Scope grammar_scope.
+  Local Open Scope grammar_scope.
 
   Inductive tree_iso : @tree Σ N → @tree Σ N → Prop :=
     | ε_tree_iso A : tree_iso (ε_tree A) (ε_tree A)
@@ -260,16 +260,8 @@ Section synthesis.
     apply Hc. by symmetry.
   Qed.
 
-  Definition refines G' G : Prop. Admitted.
-
-  Lemma refinement_preserves_witness G G' A t w :
-    refines G' G →
-    t ▷ A ={ G' }=> w →
-    t ▷ A ={ G }=> w.
-  Admitted.
-
   Lemma iso_reformat_reveals_unique_parse G G' A w n W T :
-    refines G' G →
+    G' ≾ G →
     (∀ t, t ▷ A ={ G }=> w → ∃ i, t = T !!! i) →
     (∀ i, sentence_iso G A (W !!! i) w) →
     valid n W →
@@ -278,7 +270,7 @@ Section synthesis.
   Proof.
     intros HG HT Hiso ? Hc i t Ht.
     assert (HtG := Ht).
-    eapply refinement_preserves_witness in HtG; eauto.
+    eapply refinement_witness in HtG; eauto.
     destruct (Hiso i) as [Hi _].
     apply Hi in HtG as [t' [Ht' ?]]. clear Hi.
     apply HT in Ht' as [k ->].
@@ -292,7 +284,7 @@ Section synthesis.
   Qed.
 
   Corollary disambiguation G G' A w n W T :
-    refines G' G →
+    G' ≾ G →
     (∀ t, t ▷ A ={ G }=> w → ∃ i, t = T !!! i) →
     (∀ i, sentence_iso G A (W !!! i) w) →
     valid n W →
