@@ -1,5 +1,5 @@
 From stdpp Require Import vector relations.
-From LS2NF Require Import grammar equiv_class util.
+From LS2NF Require Import grammar ambiguity equiv_class util.
 From Coq Require Import ssreflect.
 
 Section synthesis.
@@ -79,28 +79,30 @@ Section synthesis.
     naive_solver.
   Qed.
 
-  Context (G : grammar Σ N).
-  Context (A : N).
+  Implicit Type G : grammar Σ N.
+  Implicit Type A : N.
 
-  Definition sentence_iso w1 w2 : Prop :=
+  Definition sentence_iso G A w1 w2 : Prop :=
     (∀ t1, t1 ▷ A ={ G }=> w1 → ∃ t2, t2 ▷ A ={ G }=> w2 ∧ tree_iso t1 t2) ∧
     (∀ t2, t2 ▷ A ={ G }=> w2 → ∃ t1, t1 ▷ A ={ G }=> w1 ∧ tree_iso t1 t2).
 
+  Global Instance sentence_equiv G A : Equiv (sentence Σ) := sentence_iso G A.
+
   (* sentence_iso is also an equivalent relation *)
 
-  Global Instance sentence_iso_refl : Reflexive sentence_iso.
+  Global Instance sentence_iso_refl G A : Reflexive (sentence_iso G A).
   Proof.
     intros w. split => t Ht; exists t; naive_solver.
   Qed.
 
-  Global Instance sentence_iso_sym : Symmetric sentence_iso.
+  Global Instance sentence_iso_sym G A : Symmetric (sentence_iso G A).
   Proof.
     intros w1 w2 [H1 H2]. split => t Ht.
     - destruct (H2 _ Ht) as [t' Ht']. exists t'. naive_solver.
     - destruct (H1 _ Ht) as [t' Ht']. exists t'. naive_solver.
   Qed.
 
-  Global Instance sentence_iso_trans : Transitive sentence_iso.
+  Global Instance sentence_iso_trans G A : Transitive (sentence_iso G A).
   Proof.
     intros w1 w2 w3 [H12 H21] [H23 H32]. split => t Ht.
     - destruct (H12 _ Ht) as [t1 [Ht1 ?]]. destruct (H23 _ Ht1) as [t2 [? ?]].
@@ -109,15 +111,15 @@ Section synthesis.
       exists t2. split; first naive_solver. etrans; eauto.
   Qed.
 
-  Global Instance sentence_iso_equiv : Equivalence sentence_iso := {
-    Equivalence_Reflexive := sentence_iso_refl;
-    Equivalence_Symmetric := sentence_iso_sym;
-    Equivalence_Transitive := sentence_iso_trans;
+  Global Instance sentence_iso_equiv G A : Equivalence (sentence_iso G A) := {
+    Equivalence_Reflexive := sentence_iso_refl G A;
+    Equivalence_Symmetric := sentence_iso_sym G A;
+    Equivalence_Transitive := sentence_iso_trans G A;
   }.
 
   (* Synthesis conditions: G is the refined grammar we need to solve. *)
 
-  Definition acceptance n (W : vec (sentence Σ) n) (T : vec (@tree Σ N) n) : Prop :=
+  Definition acceptance G A n (W : vec (sentence Σ) n) (T : vec (@tree Σ N) n) : Prop :=
     ∀ i, T !!! i ▷ A ={ G }=> W !!! i.
 
   Fixpoint reformat_tree_aux t w :=
@@ -213,18 +215,18 @@ Section synthesis.
       rewrite Heq. apply prefix_refl.
   Qed.
 
-  Definition rejection n (W : vec (sentence Σ) n) (T : vec (@tree Σ N) n) : Prop :=
+  Definition rejection G A n (W : vec (sentence Σ) n) (T : vec (@tree Σ N) n) : Prop :=
     ∀ i j, i ≠ j → ¬ (reformat_tree (T !!! j) (W !!! i) ▷ A ={ G }=> W !!! i).
 
-  Definition synthesis_conditions n W T : Prop :=
-    acceptance n W T ∧ rejection n W T.
+  Definition synthesis_conditions G A n W T : Prop :=
+    acceptance G A n W T ∧ rejection G A n W T.
 
   Definition valid n (W : vec (sentence Σ) n) : Prop :=
     ∀ i j, token <$> W !!! i = token <$> W !!! j.
 
-  Lemma tree_not_iso_with_rejected n W T :
+  Lemma tree_not_iso_with_rejected G A n W T :
     valid n W →
-    synthesis_conditions n W T →
+    synthesis_conditions G A n W T →
     ∀ i t, t ▷ A ={ G }=> W !!! i → ∀ j, j ≠ i → t ≢ T !!! j.
   Proof.
     intros Hv [Hacc Hrej] i t Ht j ? Hyp.
@@ -240,14 +242,14 @@ Section synthesis.
     done.
   Qed.
 
-  Definition sentence_equiv_class := @equiv_class (sentence Σ) sentence_iso.
+  Definition sentence_equiv_class G A := @equiv_class (sentence Σ) (sentence_iso G A).
 
-  Theorem synthesis_conditions_reveal_disjointness n W T :
+  Theorem sentence_equiv_classes_disjoint G A n W T :
     valid n W →
-    synthesis_conditions n W T →
+    synthesis_conditions G A n W T →
     ∀ i j l k, i ≠ j →
-      sentence_equiv_class (W !!! i) l →
-      sentence_equiv_class (W !!! j) k →
+      sentence_equiv_class G A (W !!! i) l →
+      sentence_equiv_class G A (W !!! j) k →
       l ## k.
   Proof.
     intros ? Hc i j l k ? ? ?.
@@ -256,6 +258,6 @@ Section synthesis.
     destruct (Hi _ (Hacc i)) as [t [Ht ?]].
     eapply tree_not_iso_with_rejected in Hc. 3: apply Ht. all: eauto.
     apply Hc. by symmetry.
-  Qed.
+  Qed.  
 
 End synthesis.

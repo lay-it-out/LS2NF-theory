@@ -9,8 +9,8 @@ homepage: "https://github.com/lay-it-out/LS2NF-theory"
 bug-reports: "https://github.com/lay-it-out/LS2NF-theory/issues"
 
 depends: [
-  "coq" { (>= "8.13.2" & < "8.14~") }
-  "coq-stdpp" { >= "dev" }
+  "coq" { = "8.14.1" }
+  "coq-stdpp" { = "dev.2023-03-24.1.504d165a" }
   "dune" { >= "2.7.0" }
 ]
 
