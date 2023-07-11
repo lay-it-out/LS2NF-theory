@@ -3,20 +3,10 @@ on: [push]
 jobs:
   Coq-Build:
     runs-on: ubuntu-latest  # container actions require GNU/Linux
-    strategy:
-      matrix:
-        coq_version:
-          - '8.13'
-        ocaml_version: ['4.13-flambda']
-      fail-fast: false  # don't stop jobs if one fails
     steps:
-      - uses: actions/checkout@v2
-      - uses: coq-community/docker-coq-action@v1
+      - uses: actions/checkout@v3
+      - uses: cachix/install-nix-action@v22
         with:
-          opam_file: 'LS2NF.opam'
-          coq_version: ${{ matrix.coq_version }}
-          ocaml_version: ${{ matrix.ocaml_version }}
-          before_install: |
-            startGroup "Add iris repo"
-              opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
-            endGroup
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - run: nix build
+      - run: nix flake check

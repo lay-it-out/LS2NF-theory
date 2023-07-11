@@ -205,7 +205,7 @@ Section encoding.
   Lemma list_nonempty_length {A} (l : list A) :
     l ≠ [] ↔ 0 < length l.
   Proof.
-    have -> : 0 < length l ↔ 0 ≠ length l by split; [apply lt_0_neq | apply neq_0_lt].
+    rewrite -Nat.neq_0_lt_0.
     apply not_iff_compat.
     have ? := length_zero_iff_nil.
     naive_solver.
@@ -226,7 +226,7 @@ Section encoding.
     have Hwf : wf (flip (succ G)) by apply acyclic_prec_wf.
     induction A as [A IHA] using (well_founded_induction Hwf).
     (* rewrite definition *)
-    rewrite HΦ; [|done..]. setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
+    rewrite HΦ; [done..|]. setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
     rewrite -derivation_spec -check_derive_spec /check_derive. setoid_rewrite derivation_spec.
     repeat apply ZifyClasses.or_morph.
     - rewrite slice_nil_iff ?decode_length; lia.
@@ -597,7 +597,7 @@ Section encoding.
           rewrite witness_unary; eauto. repeat split => //. apply apply_unary_nil.
         * intros [t [? Ht]]. subst. eapply witness_unary in Ht; eauto. naive_solver.
       + rewrite Φ_app₁_spec.
-        rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
+        rewrite Φ_derive_spec; eauto; [lia|]. unfold derive.
         split.
         * intros [? [t [? [? ?]]]]. subst. exists t.
           rewrite witness_unary; eauto. repeat split => //.
@@ -615,15 +615,15 @@ Section encoding.
         finish.
       + have -> : slice (decode m k) x δ = [] ++ slice (decode m k) x δ by rewrite app_nil_l.
         subst. rewrite Nat.add_0_r Nat.sub_0_r slice_nil.
-        rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
+        rewrite Φ_derive_spec; eauto; [lia|]. unfold derive.
         finish.
       + have -> : slice (decode m k) x δ = slice (decode m k) x δ ++ [] by rewrite app_nil_r.
         have -> : δ' = δ by lia. rewrite Nat.sub_diag slice_nil.
-        rewrite Φ_derive_spec; eauto; [|lia]. unfold derive.
+        rewrite Φ_derive_spec; eauto; [lia|]. unfold derive.
         finish.
       + have -> : slice (decode m k) x δ = slice (decode m k) x δ' ++ slice (decode m k) (x + δ') (δ - δ')
           by rewrite -slice_split.
-        rewrite !Φ_derive_spec; eauto; [|lia..]. unfold derive.
+        rewrite !Φ_derive_spec; eauto; [lia..|]. unfold derive.
         finish.
   Qed.
 

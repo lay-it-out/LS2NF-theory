@@ -9,6 +9,20 @@ This repository contains the Coq formulation on LS2NF proposed in the Lay-it-out
 
 ## Build
 
+### Via Nix
+
+Install dependencies and compile Coq code via the following command:
+
+```sh
+nix develop
+```
+
+In the nix developing environment shell, manually step into the proof using your favorite Coq IDE, such as VS Code:
+
+```sh
+(nix:coq8.17-LS2NF-dev-env) $ code .
+```
+
 ### Via Docker
 
 ```sh
@@ -17,29 +31,6 @@ docker build .
 
 This automatically creates an image with all dependencies installed and all Coq files checked.
 
-### Via OPAM
-
-Alternatively, you can directly build this project on your host machine. You must first have the OCaml Package Manager `opam` (>= 2.0) installed.
-
-First add iris-dev repository (for resolving the dev version of `stdpp`) and create a local OPAM switch:
-```sh
-opam repo add iris-dev https://gitlab.mpi-sws.org/iris/opam.git
-opam switch create . ocaml-base-compiler.4.12.0
-```
-Enter `y` when OPAM asks you to install the dependencies.
-
-Next, compile this project by:
-```sh
-make builddep   # this step can take a while
-make
-```
-
-In case you see this error when typing `make`:
-```
-make: dune: No such file or directory
-make: *** [all] Error 1
-```
-That means the environment is not in sync with the current OPAM switch. To fix it, execute `eval $(opam env)`.
 
 ## Correspondence to Paper Theorems
 
