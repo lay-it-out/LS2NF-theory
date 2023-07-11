@@ -16,7 +16,7 @@
         coqPkgs = pkgs.coqPackages_8_17;
         version = "LS2NF:main";
       in {
-        defaultPackage =
+        packages.default =
           (pkgs.callPackage ./release.nix (ocamlPkgs // coqPkgs // { inherit coq version; })).LS2NF;
       });
 }
