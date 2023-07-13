@@ -25,7 +25,7 @@ docker build .
 
 This will create a Docker image of NixOS with the above `nix build` command executed.
 
-## Step into the Code
+## Step Into the Code
 
 Type `nix develop` to enter the development shell, which contains all the dependent packages. Then start your favorite Coq IDE to step into the code, for instance, using VS code:
 ```sh
