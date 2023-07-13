@@ -9,8 +9,8 @@ Section acyclic.
 
   Open Scope grammar_scope.
 
-  (* This relation corresponds to directed edges on the graph representation
-     of a grammar. *)
+  (* This relation corresponds to the directed edges
+     on the graph representation of an LS2NF. *)
   Inductive succ : relation N :=
     | succ_unary A B φ :
       A ↦ unary B φ ∈ G →
@@ -29,7 +29,8 @@ Section acyclic.
   Definition prec : relation N := flip succ.
 
   (* A grammar is acyclic if its graph is acyclic, i.e.
-     the `succ` relation is an acyclic relation. *)
+     the `succ` relation is an acyclic relation.
+     NOTE: on the rhs: acyclic : relation ?A → Prop is from stdpp. *)
   Definition acyclic : Prop := acyclic succ.
 
   Context `{!Finite N}.

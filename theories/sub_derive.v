@@ -12,8 +12,7 @@ Section sub_derive.
 
   Open Scope grammar_scope.
 
-  (* subtree *)
-
+  (* A node is a child of another node. *)
   Inductive child : relation (@tree Σ N) :=
   | child_unary A t :
     child t (unary_tree A t)
@@ -32,10 +31,10 @@ Section sub_derive.
     all: naive_solver.
   Qed.
 
+  (* Subtree relation. *)
   Definition subtree := rtc child.
 
-  (* By definition, subtree is transitive *)
-
+  (* By definition, subtree is transitive. *)
   Lemma subtree_valid t t' :
     subtree t' t →
     ✓{G} t →
@@ -81,16 +80,17 @@ Section sub_derive.
     all: naive_solver.
   Qed.
 
-  (* sub derivation *)
-
+  (* A signature is a pair of nonterminal with a sentence. *)
   Definition sig : Type := N * sentence Σ.
 
+  (* Sub-derivation. *)
   Definition sub_derive : relation sig :=
     λ σ1 σ2, match σ1, σ2 with (A, w), (B, v) =>
       ∀ t', t' ▷ B ={G}=> v →
         ∃ t, t ▷ A ={G}=> w ∧ subtree t' t
     end.
 
+  (* Sub-derivation is transitive. *)
   Global Instance sub_derive_trans : Transitive sub_derive.
   Proof.
     intros [A w] [B v] [C u] HAB HBC t Ht.
@@ -99,8 +99,7 @@ Section sub_derive.
     exists t2. split; [done | etrans; eauto].
   Qed.
 
-  (* encoding sub derivation via sig reachable *)
-
+  (* One-step reachability relation. *)
   Inductive step : relation sig :=
   | step_unary A B φ w :
     A ↦ unary B φ ∈ G →
@@ -120,6 +119,7 @@ Section sub_derive.
 
   Infix "→₁" := step (at level 40).
 
+  (* Reachability relation: reflexive transitive closure of →₁. *)
   Definition reachable : relation sig := rtc step.
 
   Infix "→∗" := reachable (at level 40).
@@ -142,6 +142,7 @@ Section sub_derive.
       * apply rtc_once. constructor.
   Qed.
 
+  (* Relating →∗ with sub_derive. *)
   Lemma reachable_spec A w B v :
     G ⊨ B => v →
     (A, w) →∗ (B, v) ↔ sub_derive (A, w) (B, v).
@@ -198,6 +199,7 @@ Section sub_derive.
     apply reachable_sub_sig.
   Qed.
 
+  (* A specialization of sig1 →∗ sig2 when target sig2 is fixed. *)
   Inductive reachable_to σ : sig → Prop :=
   | reachable_to_refl :
     reachable_to σ σ
@@ -237,6 +239,7 @@ Section sub_derive.
       + eapply reachable_to_right; eauto.
   Qed.
 
+  (* A specialization of sig1 →∗ sig2 when source sig1 is fixed. *)
   Inductive reachable_from σ : sig → Prop :=
   | reachable_from_refl :
     reachable_from σ σ

@@ -9,10 +9,7 @@ Section ambiguity.
 
   Open Scope grammar_scope.
 
-  (* similarity *)
-
-  (* assume input trees have same root and word *)
-
+  (* Similarity of parse trees who have the same root and word. *)
   Definition similar t1 t2 : Prop :=
     match t1, t2 with
     | ε_tree _, ε_tree _ => True
@@ -32,17 +29,20 @@ Section ambiguity.
   Context `{!EqDecision Σ} `{!EqDecision N}.
   Context (G : grammar Σ N).
   
-  (* standard notion of ambiguity *)
+  (* Derivation ambiguity: standard notion of ambiguity. *)
   Definition derive_amb A w : Prop :=
     ∃ t1 t2, t1 ▷ A ={G}=> w ∧ t2 ▷ A ={G}=> w ∧ t1 ≠ t2.
 
-  (* local ambiguity *)
+  (* Our notion of local ambiguity. *)
   Definition local_amb A w : Prop :=
     ∃ H h, reachable G (A, w) (H, h) ∧
       ∃ t1 t2, t1 ▷ H ={G}=> h ∧ t2 ▷ H ={G}=> h ∧ ¬ (similar t1 t2).
 
-  (* first direction : local ambiguous -> derivation ambiguous *)
-
+  (* In the following, we are going to show that local ambiguity ↔ derivation ambiguity. *)
+  
+  (* First direction : local ambiguity → derivation ambiguity *)
+  
+  (* Substitute s for a subtree t in tree T. *)
   Fixpoint replace T t s :=
     match T with
     | unary_tree A t1 =>
@@ -144,7 +144,7 @@ Section ambiguity.
       subst. apply Hnot, similar_refl.
   Qed.
 
-  (* second direction : derivation ambiguous -> local ambiguous *)
+  (* second direction : derivation ambiguity → local ambiguity *)
 
   (* diff two trees with same root and sentence *)
   Fixpoint diff t1 t2 :=
@@ -250,8 +250,7 @@ Section ambiguity.
       eapply diff_result_not_similar; eauto.
   Qed.
 
-  (* To sum up *)
-
+  (* Main theorem for this section. *)
   Theorem derive_amb_iff_local_amb A w :
     derive_amb A w ↔ local_amb A w.
   Proof.

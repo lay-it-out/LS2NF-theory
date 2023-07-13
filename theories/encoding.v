@@ -4,25 +4,33 @@ From LS2NF Require Import grammar util ambiguity acyclic sub_derive slice deriva
 
 Section encoding.
 
+  (* Assume the alphabet is a finite nonempty set, where every two tokens 
+     can be trivially decided equal or not equal.
+     Assume the nonterminal symbol set is finite and also every two symbols
+     can be trivially decided equal or not equal. *)
   Context {Σ N : Type} `{!EqDecision Σ} `{!Inhabited Σ} `{!EqDecision N} `{!Finite N}.
+  (* Consider an acyclic LS2NF G. *)
   Context (G : grammar Σ N) `{!acyclic G}.
 
   Open Scope grammar_scope.
 
-  (* sat model *)
-
+  (* SAT model. *)
   Record model := {
-    term : nat → Σ;
-    line : nat → nat;
-    col : nat → nat;
-    line_col i := (line i, col i);
+    (* the sentence w *)
+    term : nat → Σ;                 (* T-variables for tokens *)
+    line : nat → nat;               (* L-variables for line numbers *)
+    col : nat → nat;                (* C-variables for column numbers *)
+    line_col i := (line i, col i);  (* a short-hand to get the position of the i-th token *)
+    (* auxillary propositional variables *)
+    (* D-variables: can_derive A x δ states whether G ⊨ A => slice w x δ *)
     can_derive : N → nat (* start (inclusive) *) → nat (* length, positive *) → Prop;
+    (* R-variables: can_reach_from A x δ states whether (S, w) →∗ (A, slice w x δ). *)
     can_reach_from : N → nat (* start (inclusive) *) → nat (* length, positive *) → Prop;
+    (* R-variables (ε-version): ε_can_reach_from A states whether (S, w) →∗ (A, ε)*)
     ε_can_reach_from : N → Prop;
   }.
 
-  (* decode *)
-
+  (* Decode a sentence form a model. *)
   Definition decode m k : sentence Σ :=
     (λ i, term m i @ (line m i, col m i)) <$> (index_range k).
 
@@ -74,12 +82,13 @@ Section encoding.
   Implicit Type w : sentence Σ.
   Implicit Type x δ : nat.
 
-  (* formula: a predicate over a bounded model *)
-
+  (* Formula: a predicate over a bounded (the length of the sentence) model. 
+     Since a formula is just a predicate, the usual notion of satisfaction m ⊨ Φ
+     is essentially Φ m. *)
   Definition formula : Type := nat → model → Prop.
 
-  (* encoding predicate *)
-
+  (* Encode layout constraints. *)
+  (* Assume these encoding functions exist and they are sound. *)
   Variable Φ_app₁ : (unary_predicate Σ) → nat → nat → formula.
   Variable Φ_app₁_spec : ∀ φ x δ k m,
     Φ_app₁ φ x δ k m ↔ app₁ φ (slice (decode m k) x δ) = true.
@@ -89,8 +98,7 @@ Section encoding.
     Φ_app₂ φ x1 δ1 x2 δ2 k m ↔
       app₂ φ (slice (decode m k) x1 δ1) (slice (decode m k) x2 δ2) = true.
 
-  (* encoding sentence well-formed-ness *)
-
+  (* Encode sentence well-formed-ness. *)
   Definition Φ_well_formed : formula := λ k m,
     ∀ i, 0 ≤ i < k - 1 →
       line m i < line m (i + 1) ∨ (line m i = line m (i + 1) ∧ col m i < col m (i + 1)).
@@ -133,8 +141,7 @@ Section encoding.
   
   Local Hint Resolve Φ_well_formed_spec well_formed_no_dup : core.
 
-  (* encoding derivation *)
-
+  (* Encode derivation relations. *)
   Definition Φ_derive : formula := λ k m,
     ∀ A x δ, 0 < δ (* nonempty *) → x + δ ≤ k →
       can_derive m A x δ ↔ (
@@ -279,7 +286,7 @@ Section encoding.
           all: rewrite cons_length; lia.
   Qed.
 
-  (* encoding reachable from (S, [0..k]) *)
+  (* Encode reachability relation. *)
   Definition Φ_reach_nonempty S : formula := λ k m,
     ∀ B x δ, 0 < δ → x + δ ≤ k →
       can_reach_from m B x δ ↔ (
@@ -511,16 +518,15 @@ Section encoding.
           rewrite app_nil_r. apply reachable_from_spec, Φ_reach_nonempty_spec; eauto.
   Qed.
 
-  (* encoding derivations using different productions *)
-
-  Inductive using_clause : Type :=
-  | using_ε : using_clause
-  | using_atom : Σ → using_clause
-  | using_unary : N → unary_predicate Σ → using_clause
-  | using_binary : N → N → binary_predicate Σ → nat (* length of first part *) → using_clause
+  (* Choice clauses. *)
+  Inductive choice_clause : Type :=
+  | using_ε : choice_clause
+  | using_atom : Σ → choice_clause
+  | using_unary : N → unary_predicate Σ → choice_clause
+  | using_binary : N → N → binary_predicate Σ → nat (* length of first part *) → choice_clause
   .
 
-  Definition usable_clauses A δ : list using_clause :=
+  Definition choice_clauses A δ : list choice_clause :=
     clauses G A ≫= (λ α, match α with
     | ε => [using_ε]
     | atom a => [using_atom a]
@@ -528,15 +534,15 @@ Section encoding.
     | binary Bl Br φ => (λ δ', using_binary Bl Br φ δ') <$> (index_range δ ++ [δ])
     end).
 
-  Lemma elem_of_usable_clauses ψ A δ :
-    ψ ∈ usable_clauses A δ ↔ match ψ with
+  Lemma elem_of_choice_clauses ψ A δ :
+    ψ ∈ choice_clauses A δ ↔ match ψ with
     | using_ε => A ↦ ε ∈ G
     | using_atom a => A ↦ atom a ∈ G
     | using_unary B φ => A ↦ unary B φ ∈ G
     | using_binary Bl Br φ δ' => A ↦ binary Bl Br φ ∈ G ∧ δ' ≤ δ
     end.
   Proof.
-    rewrite /usable_clauses elem_of_list_bind. split.
+    rewrite /choice_clauses elem_of_list_bind. split.
     - (* -> *)
       intros [α [Hin ?]]. repeat case_match => //.
       all: repeat match goal with
@@ -556,7 +562,9 @@ Section encoding.
           [left; apply index_range_elem_of | right; apply elem_of_list_singleton].
   Qed.
   
-  Definition Φ_using_derive ψ x δ : formula :=
+  (* Semantically, a choice clause encodes the condition of fulfilling the first derivation step
+     when using this clause. *)
+  Definition Φ_choice_sem ψ x δ : formula :=
     match ψ with
     | using_ε => λ k m, δ = 0
     | using_atom a => λ k m, δ = 1 ∧ term m x = a
@@ -569,12 +577,12 @@ Section encoding.
       Φ_app₂ φ x δ' (x + δ') (δ - δ') k m
     end.
 
-  Lemma Φ_using_derive_witness k m x δ A ψ :
+  Lemma Φ_choice_sem_witness k m x δ A ψ :
     Φ_well_formed k m →
     Φ_derive k m →
     x + δ ≤ k →
-    ψ ∈ usable_clauses A δ →
-    Φ_using_derive ψ x δ k m ↔ match ψ with
+    ψ ∈ choice_clauses A δ →
+    Φ_choice_sem ψ x δ k m ↔ match ψ with
     | using_ε => δ = 0 ∧ ε_tree A ▷ A ={G}=> slice (decode m k) x δ
     | using_atom a => δ = 1 ∧ a = term m x ∧ let p := (line m x, col m x) in
       (token_tree A (a @ p)) ▷ A ={G}=> slice (decode m k) x δ
@@ -584,7 +592,7 @@ Section encoding.
     end.
   Proof.
     intros ? ? ? Hψ. destruct ψ as [| a | B φ | Bl Br φ δ'] => /=.
-    all: apply elem_of_usable_clauses in Hψ.
+    all: apply elem_of_choice_clauses in Hψ.
     - split; last naive_solver.
       intros ->. split; first done. by apply witness_ε.
     - split; last naive_solver.
@@ -627,10 +635,14 @@ Section encoding.
         finish.
   Qed.
 
-  Definition Φ_multi_usable (A : N) (x δ : nat) : formula := λ k m,
-    ∃ ψ1, ψ1 ∈ usable_clauses A δ ∧
-      ∃ ψ2, ψ2 ∈ usable_clauses A δ ∧
-        ψ1 ≠ ψ2 ∧ Φ_using_derive ψ1 x δ k m ∧ Φ_using_derive ψ2 x δ k m.
+  (* Encode the existence of dissimilar parse trees. *)
+  Definition Φ_multi (A : N) (x δ : nat) : formula := λ k m,
+    (* Here we explicitly states that there exist two distinct choice clauses that are both
+       semantically valid, which is equal to
+       the size of {ψ | ψ ∈ choice_clauses A δ ∧ Φ_choice_sem ψ2 x δ k m} >= 2. *)
+    ∃ ψ1, ψ1 ∈ choice_clauses A δ ∧
+      ∃ ψ2, ψ2 ∈ choice_clauses A δ ∧
+        ψ1 ≠ ψ2 ∧ Φ_choice_sem ψ1 x δ k m ∧ Φ_choice_sem ψ2 x δ k m.
 
   Lemma app_length_le_l {A} (l1 l2 l : list A) :
     l1 ++ l2 = l →
@@ -651,20 +663,20 @@ Section encoding.
       rewrite H1 in H; rewrite H2 in H
     end.
 
-  Lemma Φ_multi_usable_spec k m x δ A :
+  Lemma Φ_multi_spec k m x δ A :
     Φ_well_formed k m →
     Φ_derive k m →
     x + δ ≤ k →
-    Φ_multi_usable A x δ k m ↔ ∃ t1, t1 ▷ A ={G}=> slice (decode m k) x δ ∧
+    Φ_multi A x δ k m ↔ ∃ t1, t1 ▷ A ={G}=> slice (decode m k) x δ ∧
       ∃ t2, t2 ▷ A ={G}=> slice (decode m k) x δ ∧ ¬ similar t1 t2.
   Proof.
     intros ? ?. split.
     - (* -> *)
       intros [ψ1 [Hψ1 [ψ2 [Hψ2 [Hne [HΦ1 HΦ2]]]]]].
-      eapply Φ_using_derive_witness in HΦ1; eauto.
-      eapply Φ_using_derive_witness in HΦ2; eauto.
+      eapply Φ_choice_sem_witness in HΦ1; eauto.
+      eapply Φ_choice_sem_witness in HΦ2; eauto.
       repeat case_match.
-      all: apply elem_of_usable_clauses in Hψ1, Hψ2.
+      all: apply elem_of_choice_clauses in Hψ1, Hψ2.
       all: repeat match goal with
       | [ H : _ ∧ _ |- _ ] => destruct H as [H ?]
       | [ H : ∃ _, _ |- _ ] => destruct H as [? H]
@@ -688,20 +700,20 @@ Section encoding.
       all: simpl in *; try done; try congruence.
       all: invert Ht1.
       all: invert Ht2.
-      all: unfold Φ_multi_usable.
+      all: unfold Φ_multi.
       all: repeat match goal with
-      | [ H : ?A ↦ ε ∈ _ |- ∃ ψ, ψ ∈ usable_clauses ?A ?δ ∧ _ ] =>
-        assert (using_ε ∈ usable_clauses A δ) by (by apply elem_of_usable_clauses);
+      | [ H : ?A ↦ ε ∈ _ |- ∃ ψ, ψ ∈ choice_clauses ?A ?δ ∧ _ ] =>
+        assert (using_ε ∈ choice_clauses A δ) by (by apply elem_of_choice_clauses);
         eexists; split; [eauto|]; wrap H
-      | [ H : ?A ↦ atom ?a ∈ _ |- ∃ ψ, ψ ∈ usable_clauses ?A ?δ ∧ _ ] =>
-        assert (using_atom a ∈ usable_clauses A δ) by (by apply elem_of_usable_clauses);
+      | [ H : ?A ↦ atom ?a ∈ _ |- ∃ ψ, ψ ∈ choice_clauses ?A ?δ ∧ _ ] =>
+        assert (using_atom a ∈ choice_clauses A δ) by (by apply elem_of_choice_clauses);
         eexists; split; [eauto|]; wrap H
-      | [ H : ?A ↦ unary ?B ?φ ∈ _ |- ∃ ψ, ψ ∈ usable_clauses ?A ?δ ∧ _ ] =>
-        assert (using_unary B φ ∈ usable_clauses A δ) by (by apply elem_of_usable_clauses);
+      | [ H : ?A ↦ unary ?B ?φ ∈ _ |- ∃ ψ, ψ ∈ choice_clauses ?A ?δ ∧ _ ] =>
+        assert (using_unary B φ ∈ choice_clauses A δ) by (by apply elem_of_choice_clauses);
         eexists; split; [eauto|]; wrap H
-      | [ H : ?A ↦ binary (root ?t1) (root ?t2) ?φ ∈ _ |- ∃ ψ, ψ ∈ usable_clauses ?A ?δ ∧ _ ] =>
-        assert (using_binary (root t1) (root t2) φ (length (word t1)) ∈ usable_clauses A δ) by
-          (apply elem_of_usable_clauses; split; [done 
+      | [ H : ?A ↦ binary (root ?t1) (root ?t2) ?φ ∈ _ |- ∃ ψ, ψ ∈ choice_clauses ?A ?δ ∧ _ ] =>
+        assert (using_binary (root t1) (root t2) φ (length (word t1)) ∈ choice_clauses A δ) by
+          (apply elem_of_choice_clauses; split; [done 
             | erewrite <-slice_length; [ eapply app_length_le_l; eauto | by rewrite decode_length ]
           ]);
         eexists; split; [eauto|]; wrap H
@@ -712,7 +724,7 @@ Section encoding.
         have Hw : word t11 ++ word t12 = word t21 ++ word t22 by congruence.
         apply app_inj_1 in Hw => //. naive_solver.
       }
-      all: try (split; eapply Φ_using_derive_witness; simpl; eauto).
+      all: try (split; eapply Φ_choice_sem_witness; simpl; eauto).
       all: repeat match goal with
       | [ |- _ ▷ _ ={ _ }=> _ ] =>
         repeat split; simpl; try done; try congruence; econstructor; eauto
@@ -731,28 +743,28 @@ Section encoding.
       end.
   Qed.
 
-  (* Main theorems *)
-
+  (* Main encoding: note that Φ_reach := Φ_reach_empty ∧ Φ_reach_nonempty. *)
   Definition Φ_amb A : formula := λ k m,
     Φ_well_formed k m ∧ Φ_derive k m ∧ Φ_reach A k m ∧ ∃ H,
-     (ε_can_reach_from m H ∧ Φ_multi_usable H 0 0 k m) ∨
-     (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧ can_reach_from m H x δ ∧ Φ_multi_usable H x δ k m).
+     (ε_can_reach_from m H ∧ Φ_multi H 0 0 k m) ∨
+     (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧ can_reach_from m H x δ ∧ Φ_multi H x δ k m).
 
+  (* Main theorems. *)
   Theorem Φ_amb_sound A k m :
-    Φ_amb A k m → derive_amb G A (decode m k).
+    Φ_amb A k m (* i.e., m ⊨ Φ_amb X k *) → derive_amb G A (decode m k).
   Proof.
     intros [? [? [[? ?] [X HX]]]].
     apply derive_amb_iff_local_amb => //.
     destruct HX as [[? Hm]|[x [δ [? [? [? Hm]]]]]].
     - exists X, []; split; first by apply Φ_reach_empty_spec.
-      eapply Φ_multi_usable_spec in Hm; eauto; last lia.
+      eapply Φ_multi_spec in Hm; eauto; last lia.
       simpl in Hm. naive_solver.
     - exists X, (slice (decode m k) x δ); split; first by apply Φ_reach_nonempty_spec.
-      eapply Φ_multi_usable_spec in Hm; eauto. naive_solver.
+      eapply Φ_multi_spec in Hm; eauto. naive_solver.
   Qed.
 
   Theorem Φ_amb_complete X k w :
-    well_formed w → length w = k → derive_amb G X w → ∃ m, Φ_amb X k m.
+    well_formed w → length w = k → derive_amb G X w → ∃ m, Φ_amb X k m (* i.e., Φ_amb X k is sat *).
   Proof.
     intros ? <- Hamb.
     apply derive_amb_iff_local_amb in Hamb; eauto.
@@ -764,14 +776,14 @@ Section encoding.
     do 3 (split; first done). exists C.
     destruct h as [|tk h].
     - left. split; first done.
-      eapply Φ_multi_usable_spec; eauto; lia.
+      eapply Φ_multi_spec; eauto; lia.
     - right.
       have Hsub : sublist (tk :: h) w by eapply reachable_sublist; eauto.
       apply sublist_slice in Hsub as [x [? Hh]].
       exists x, (length (tk :: h)).
       simpl can_reach_from. rewrite -Hh. repeat split => //.
       { rewrite cons_length; lia. }
-      eapply Φ_multi_usable_spec; eauto.
+      eapply Φ_multi_spec; eauto.
       rewrite decode_encode -Hh; eauto.
   Qed.
 

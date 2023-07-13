@@ -4,7 +4,7 @@ From Coq Require Import ssreflect.
 Declare Scope grammar_scope.
 Local Open Scope grammar_scope.
 
-(* Positioned token. *)
+(* Positioned token: a terminal/token with its position in source file. *)
 Record pos_token (Σ : Type) := {
   token : Σ;
   pos : nat (* line number *) * nat (* column number *);
@@ -24,6 +24,8 @@ Proof.
   destruct (decide (a1 = a2 ∧ p1 = p2)); [left | right]; naive_solver.
 Qed.
 
+(* An ascending order for pos_token: either the line number is increasing,
+    or the column number is increasing (when lines are equal). *)
 Definition pos_token_lt (Σ : Type) : relation (pos_token Σ) := λ pt1 pt2,
   match pos pt1, pos pt2 with (x1, y1), (x2, y2) =>
     (x1 < x2) ∨ (x1 = x2 ∧ y1 < y2)
@@ -35,10 +37,10 @@ Proof.
   unfold pos_token_lt. simpl. lia.
 Qed.
 
-(* Sentence: a list of positioned tokens. *)
+(* In a layout-sensitive grammar, a sentence is a sequence of positioned tokens. *)
 Definition sentence (Σ : Type) : Type := list (pos_token Σ).
 
-(* A well-formed sentence: positions are increasing. *)
+(* Well-formedness: the positions of the tokens are in ascending order. *)
 Definition well_formed {Σ : Type} (w : sentence Σ) : Prop :=
   Sorted (pos_token_lt Σ) w.
 
@@ -81,7 +83,7 @@ Proof.
   destruct (check_lf_clause_eq α β); [left | right]; naive_solver.
 Qed.
 
-(* Layout predicates. *)
+(* Layout constraints: a predicate over sentence(s) that is true when the sentence(s) is empty. *)
 Definition unary_predicate (Σ : Type) : Type := {p : sentence Σ → bool & p [] = true}.
 Definition app₁ {Σ : Type} (φ : unary_predicate Σ) := projT1 φ.
 
@@ -89,13 +91,23 @@ Definition binary_predicate (Σ : Type) : Type :=
   {p : sentence Σ → sentence Σ → bool & ∀ w1 w2, w1 = [] ∨ w2 = [] → p w1 w2 = true}.
 Definition app₂ {Σ : Type} (φ : binary_predicate Σ) := projT1 φ.
 
-(* Layout-sensitive binary normal form. *)
+(* Layout-sensitive binary normal form (LS2NF), where Σ is a finite set of terminals (or tokens),
+    and N is a finite set of nonterminals. *)
 Record grammar (Σ N : Type) := {
   (* start symbol *)
   start : N;
-  (* productions *)
+  (* production rules, only the layout free version *)
   lf_clauses : N → list (lf_clause Σ N);
+  (* lf_clauses is a set (thus has no duplicated elements) *)
   lf_clauses_no_dup : ∀ A, NoDup (lf_clauses A);
+  (* the layout constraints attached to the production rules are defined using the mappings below *)
+  (* NOTES: 
+      1. Later, we will introduce functions that can check if a production rule A ↦ α belongs to 
+         a grammar G, denoted by A ↦ α ∈ G. 
+      2. Due to the nature of mappings, one can have
+         neither have A ↦ unary B φ and A ↦ unary B φ' simultaneously,
+         nor A ↦ binary B1 B2 φ and A ↦ binary B1 B2 φ' simultaneously.
+   *)
   unary_clause_predicate : N → N → unary_predicate Σ;
   binary_clause_predicate : N → N → N → binary_predicate Σ;
 }.
@@ -107,10 +119,10 @@ Arguments binary_clause_predicate {_} {_}.
 
 (* Layout-sensitive clauses. *)
 Inductive clause (Σ N : Type) : Type :=
-  | ε
-  | atom (token : Σ)
-  | unary (A : N) (φ : unary_predicate Σ)
-  | binary (Al Ar : N) (φ : binary_predicate Σ)
+  | ε                                             (* empty clause ε *)
+  | atom (token : Σ)                              (* atomic clause a *)
+  | unary (A : N) (φ : unary_predicate Σ)         (* unary clause A^φ *)
+  | binary (Al Ar : N) (φ : binary_predicate Σ)   (* binary clause Al φ Ar *)
   .
 
 Arguments ε {_} {_}.
@@ -126,6 +138,7 @@ Definition clauses {Σ N : Type} (G : grammar Σ N) (A : N) : list (clause Σ N)
   | lf_binary Bl Br => binary Bl Br (binary_clause_predicate G A Bl Br)
   end) <$> lf_clauses G A.
 
+(* Production rule. *)
 Inductive production (Σ N : Type) : Type :=
   mk_production (lhs : N) (rhs : clause Σ N).
 Arguments mk_production {_} {_}.
@@ -183,10 +196,10 @@ Section parsing.
 
   (* Parse tree. *)
   Inductive tree : Type :=
-    | ε_tree (r : N)
-    | token_tree (r : N) (pt : pos_token Σ)
-    | unary_tree (r : N) (t : tree)
-    | binary_tree (r : N) (tl tr : tree)
+    | ε_tree (r : N)                          (* empty(r)    *)
+    | token_tree (r : N) (pt : pos_token Σ)   (* leaf(r, pt) *)
+    | unary_tree (r : N) (t : tree)           (* unary(r, t) *)
+    | binary_tree (r : N) (tl tr : tree)      (* binary(r, tl, tr) *)
     .
 
   Definition root t : N :=
@@ -258,9 +271,10 @@ Section parsing.
       tree_valid (binary_tree A t1 t2)
     .
 
+  (* A parse tree t witnesses a derivation from a nonterminal A to a sentence w. *)
   Definition tree_witness t A w := root t = A ∧ word t = w ∧ tree_valid t.
 
-  (* derivation *)
+  (* Derivation (declarative style). *)
   Definition derive A w : Prop := ∃ t, tree_witness t A w.
 
 End parsing.
