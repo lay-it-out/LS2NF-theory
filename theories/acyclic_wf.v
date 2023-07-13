@@ -18,12 +18,12 @@ Section acyclic_wf.
     - eapply tc_r; eauto. 
   Qed.
 
-  Definition acyclic (R : relation A) : Prop := ∀ x, ¬ ex_loop R x.
+  Definition rel_acyclic (R : relation A) : Prop := ∀ x, ¬ ex_loop R x.
 
   Context `{!EqDecision A} `{!Finite A}.
 
   Lemma finite_acyclic_flip_wf :
-    acyclic R → wf (flip R).
+    rel_acyclic R → wf (flip R).
   Proof.
     intros Hno x. apply tc_finite_sn.
     - intros y ?. eapply Hno. apply tc_refl_ex_loop; eauto.
@@ -31,7 +31,7 @@ Section acyclic_wf.
   Qed.
 
   Lemma finite_acyclic_wf :
-    acyclic R → wf R.
+    rel_acyclic R → wf R.
   Proof.
     intros Hno x. apply tc_finite_sn.
     - intros y ?. eapply Hno. apply tc_refl_ex_loop, tc_flip; eauto.

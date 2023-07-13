@@ -29,9 +29,8 @@ Section acyclic.
   Definition prec : relation N := flip succ.
 
   (* A grammar is acyclic if its graph is acyclic, i.e.
-     the `succ` relation is an acyclic relation.
-     NOTE: on the rhs: acyclic : relation ?A → Prop is from stdpp. *)
-  Definition acyclic : Prop := acyclic succ.
+     the `succ` relation is an acyclic relation. *)
+  Definition acyclic : Prop := rel_acyclic succ.
 
   Context `{!Finite N}.
 

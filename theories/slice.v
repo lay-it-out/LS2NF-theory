@@ -11,6 +11,7 @@ Section slice.
   Implicit Type l : list A.
   Implicit Type a k : nat.
 
+  (* l[a..a+k) *)
   Definition slice l a k : list A :=
     take k (drop a l).
 

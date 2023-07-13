@@ -787,4 +787,9 @@ Section encoding.
       rewrite decode_encode -Hh; eauto.
   Qed.
 
+  (* Uncomment to print all the assumptions (axioms, parameters and variables) 
+     the two main theorems use: *)
+  (* Print Assumptions Φ_amb_sound. *)
+  (* Print Assumptions Φ_amb_complete. *)
+
 End encoding.

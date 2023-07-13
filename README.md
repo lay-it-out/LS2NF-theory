@@ -5,26 +5,17 @@
 [build-badge]: https://github.com/lay-it-out/LS2NF-theory/actions/workflows/build.yml/badge.svg?branch=main
 [build-link]: https://github.com/lay-it-out/LS2NF-theory/actions/workflows/build.yml
 
-
-This proof relies on `stdpp`, an extended "standard library" for Coq.
-
-This repository contains the Coq formulation on LS2NF proposed in the Lay-it-out paper.
+This repository contains the Coq formulation on LS2NF, its properties, and a sound and complete SMT encoding for checking its bounded ambiguity.
 
 ## Build
 
 ### Via Nix
 
-Install dependencies and compile Coq code via the following command:
-
 ```sh
-nix develop
+nix build
 ```
 
-In the nix developing environment shell, manually step into the proof using your favorite Coq IDE, such as VS Code:
-
-```sh
-(nix:coq8.17-LS2NF-dev-env) $ code .
-```
+This will download all dependencies and compile the Coq code. If no error messages show, then the theorems are all machine-checked.
 
 ### Via Docker
 
@@ -32,14 +23,20 @@ In the nix developing environment shell, manually step into the proof using your
 docker build .
 ```
 
-This automatically creates an image with all dependencies installed and all Coq files checked.
+This will create a Docker image of NixOS with the above `nix build` command executed.
 
+## Step into the Code
+
+Type `nix develop` to enter the development shell, which contains all the dependent packages. Then start your favorite Coq IDE to step into the code, for instance, using VS code:
+```sh
+(nix:coq8.17-LS2NF-dev-env) $ code .
+```
 
 ## Paper-to-Artifact Correspondence Guide
 
-We formulated all the definitions and theorems mentioned in sections 4 and 5. The main theorems are the soundness (Theorem 5.9) and completeness (Theorem 5.10) of our SMT encoding (section 5).
+This repository supports the results shown in the paper "Automated Ambiguity Detection in Layout-Sensitive Grammars". All the definitions and theorems mentioned in §4 and §5 are formulated. The main theorems are the soundness (Theorem 5.9) and completeness (Theorem 5.10) of our SMT encoding (§5).
 
-In the order in which the definitions and theorems appear in the text, the following tables list their counterparts in the Coq code. The first table shows all definitions mentioned in §3:
+In the order in which the definitions and theorems appear in the paper, the following tables list their counterparts in the Coq code (under `theories/` folder). The first table lists the definitions mentioned in §3:
 
 | Definition in paper       | Coq file               | Name of formalization                          | Notation         |
 | :------------------------ | :--------------------- | :--------------------------------------------- | :--------------- |
@@ -55,7 +52,7 @@ In the order in which the definitions and theorems appear in the text, the follo
 | Derivation                | `theories/grammar.v`   | `Definition derive`                            | `G ⊨ A => w`     |
 | Derivation ambiguity      | `theories/ambiguity.v` | `Definition derive_amb`                        |                  |
 
-The second table shows all definitions/theorems mentioned in §4 and §5:
+The second table lists the definitions and theorems mentioned in §4 and §5:
 
 | Definition/Theorem in paper               | Coq file                | Name of formalization                    | Notation     |
 | :---------------------------------------- | :---------------------- | :--------------------------------------- | :----------- |
@@ -86,18 +83,38 @@ The second table shows all definitions/theorems mentioned in §4 and §5:
 | Theorem 5.9 (Soundness)                   | `theories/encoding.v`   | `Φ_amb_sound`                            |              |
 | Theorem 5.10 (Completeness)               | `theories/encoding.v`   | `Φ_amb_complete`                         |              |
 
-This proof artifact contains the following proof files:
-- proof/theories/grammar.v: basic definitions about layout-sensitive grammars, including the definition of LS2NF, parse trees, witness judgment, and a "declarative" notion of derivation. 
-- proof/theories/derivation.v: an inductive definition of the derivation relation and its equivalence proof to the "declarative" notion defined in `grammar.v`.
-- proof/theories/witness.v: a set of helper lemmas for proving the witness judgment by the type of clause.
-- proof/theories/sub_derive.v: definition of sub-derivation and lemmas correspond to reachability relation.
-- proof/theories/ambiguity.v: the standard notion of ambiguity, our definition of local ambiguity, and their logical equivalence proof.
-- proof/theories/acyclic.v: successor and predecessor relations on the graph representation of LS2NF, together with proof of their well-foundedness.
-- proof/theories/encoding.v: our SMT encoding with its soundness and completeness proofs (our main theorems).
-- proof/theories/acyclic_wf.v: helper lemmas for proving well-foundedness from acyclicity.
-- proof/theories/slice.v: helper lemmas for list slicing.
-- proof/theories/util.v: other helper lemmas.
+### Dependency
 
-Below is a dependency diagram of the proof files: TODO
+This proof relies on [stdpp](https://gitlab.mpi-sws.org/iris/stdpp), an extended "standard library" for Coq. We find the lemmas on lists, relations, and sorting theories useful to our proof.
 
+### Folder Structure
 
+The Coq files are all located in `theories/` folder:
+
+| File           | Content/Purpose                                                  |
+| :------------- | :--------------------------------------------------------------- |
+| `acyclic_wf.v` | Helper definitions and lemmas for proving well-foundedness       |
+| `acyclic.v`    | Acyclicity and well-foundedness                                  |
+| `ambiguity.v`  | Local ambiguity with its equivalence to the standard ambiguity   |
+| `derivation.v` | Helper lemmas for proving derivation                             |
+| `encoding.v`   | SMT encoding with its soundness and completeness proofs          |
+| `grammar.v`    | Preliminary definitions on LS2NF and parsing                     |
+| `slice.v`      | Helper lemmas for list slicing                                   |
+| `sub_derive.v` | Sub-derivation, reachability, and their correlation              |
+| `util.v`       | Other helper definitions and lemmas                              |
+| `witness.v`    | Helper lemmas for proving witness judgment                       |
+
+### Justification of Assumptions
+
+One assumption we made: the alphabet (or the terminal set) of an LS2NF shall be nonempty. We introduced this via type class constraint `{!Inhabited Σ}` at line 11 of file `encoding.v`. This makes sense because a language with an empty alphabet is trivially empty and thus not interesting at all, though we could elide this by defining `Definition encode` differently (but this will take invaluable efforts).
+
+The other type class constraints are indeed true:
+- `{!EqDecision Σ}`: one can decide if two terminals are equal or not;
+- `{!EqDecision N}`: one can decide if two nonterminals are equal or not;
+- `{!Finite N}`: the nonterminal set is finite.
+
+The encoding of layout constraints is left abstract in `encoding.v` because this proof artifact aims to show the soundness and completeness of a *generic* SMT encoding---generic to any user-specified layout constraints. The definition of those layout constraints shall be regarded as a premise of the main theorems.
+
+The above are all the assumptions we made. To check it automatically, either:
+- launch `encoding.v` in your IDE, uncomment the two `Print Assumptions` commands at the end, and step into them to see the outputs; or
+- uncomment the two `Print Assumptions` commands at the end of `encoding.v`, save the file, execute `nix develop`, and in the new shell type `make` to see the output messages.
