@@ -2,7 +2,7 @@
   mkCoqDerivation,
   version ? null,
   coq,
-  dune_2,
+  dune_3,
   ocaml,
   ocamlbuild,
   stdpp, ... }:
@@ -17,7 +17,7 @@
 
       propagatedBuildInputs =
         [ coq
-          dune_2
+          dune_3
         ] ++
         # Coq libraries
         [ stdpp

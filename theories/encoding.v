@@ -2,35 +2,54 @@ From stdpp Require Import prelude sorting finite.
 From Coq Require Import ssreflect.
 From LS2NF Require Import grammar util ambiguity acyclic sub_derive slice derivation witness.
 
+(** # <script type="text/javascript"
+  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
+</script>
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  tex2jax: {inlineMath: [['$','$']]}
+});
+</script># *)
+
 Section encoding.
 
-  (* Assume the alphabet is a finite nonempty set, where every two tokens 
+  (** Assume the alphabet is a finite nonempty set, where every two tokens 
      can be trivially decided equal or not equal.
      Assume the nonterminal symbol set is finite and also every two symbols
      can be trivially decided equal or not equal. *)
   Context {Σ N : Type} `{!EqDecision Σ} `{!Inhabited Σ} `{!EqDecision N} `{!Finite N}.
-  (* Consider an acyclic LS2NF G. *)
+  
+  (** Consider an acyclic LS2NF [G]. *)
   Context (G : grammar Σ N) `{!acyclic G}.
 
   Open Scope grammar_scope.
 
-  (* SAT model. *)
+  (** * Satisfying Model *)
+  (** As mentioned in §5.1, a satisfying model consists of two categories of variables.
+      
+      First, we encode the ambiguous sentence with the following three groups of variables:
+      - [term i] for #$\mathcal{T}_i$#, the token at index [i]
+      - [line i] for #$\mathcal{L}_i$#, the line number of the token at index [i]
+      - [col i] for #$\mathcal{C}_i$#, the line number of the token at index [i]
+
+      Second, we introduce auxiliary propositional variables to state whether a derivation
+      or reachability judgment holds:
+      - [can_derive A x δ] (#$\mathcal{D}^A_{x, \delta}$#) states whether [G ⊨ A => slice w x δ],
+        where [slice w x δ] gives the substring of [w] with starting index [x] and length [δ])
+        (i.e., the notation #$w_{x, \delta}$# used in the paper)
+      - [can_reach_from A x δ] (#$\mathcal{R}^A_{x, \delta}$#) states whether [(S, w) →∗ (A, slice w x δ)]
+      - [ε_can_reach_from A] (#$\mathcal{R}^A_{\varepsilon}$#) states whether [(S, w) →∗ (A, ε)] *)
   Record model := {
-    (* the sentence w *)
-    term : nat → Σ;                 (* T-variables for tokens *)
-    line : nat → nat;               (* L-variables for line numbers *)
-    col : nat → nat;                (* C-variables for column numbers *)
+    term : nat → Σ;
+    line : nat → nat;
+    col : nat → nat;
     line_col i := (line i, col i);  (* a short-hand to get the position of the i-th token *)
-    (* auxillary propositional variables *)
-    (* D-variables: can_derive A x δ states whether G ⊨ A => slice w x δ *)
     can_derive : N → nat (* start (inclusive) *) → nat (* length, positive *) → Prop;
-    (* R-variables: can_reach_from A x δ states whether (S, w) →∗ (A, slice w x δ). *)
     can_reach_from : N → nat (* start (inclusive) *) → nat (* length, positive *) → Prop;
-    (* R-variables (ε-version): ε_can_reach_from A states whether (S, w) →∗ (A, ε)*)
     ε_can_reach_from : N → Prop;
   }.
 
-  (* Decode a sentence form a model. *)
+  (** Decode a sentence with length [k] from a model [m]. *)
   Definition decode m k : sentence Σ :=
     (λ i, term m i @ (line m i, col m i)) <$> (index_range k).
 
@@ -46,6 +65,7 @@ Section encoding.
     intros. rewrite list_lookup_fmap index_range_lookup //.
   Qed.
 
+  (** Encode a model that encodes the given sentence [w]. *)
   Definition encode S (w : sentence Σ) : model := {|
     term i :=
       match w !! i with
@@ -82,13 +102,21 @@ Section encoding.
   Implicit Type w : sentence Σ.
   Implicit Type x δ : nat.
 
-  (* Formula: a predicate over a bounded (the length of the sentence) model. 
-     Since a formula is just a predicate, the usual notion of satisfaction m ⊨ Φ
-     is essentially Φ m. *)
+  (** * Encoding *)
+
+  (** A _formula_ is a predicate over a _bounded_ model (the bound is the sentence length).
+      The usual notion of satisfaction [m ⊨ Φ] is essentially [Φ m]. *)
   Definition formula : Type := nat → model → Prop.
 
-  (* Encode layout constraints. *)
-  (* Assume these encoding functions exist and they are sound. *)
+  (** ** Encoding Layout Constraints *)
+  (** For every possible layout constraint used in the grammar,
+      we assume there is a formula that consistently encodes its semantics.
+      In the following, we assume there are encoding functions [Φ_app₁] (for unary) 
+      and [Φ_app₂] (for binary).
+      
+      The axiom [Φ_app₁_spec] says, for a unary constraint #$\varphi$#, #$\Phi_\varphi(x, \delta) \iff \varphi(w^m_{x, \delta})$#;
+      the axiom [Φ_app₂_spec] says, for a binary constraint #$\varphi$#, #$\Phi_\varphi(x, \delta', \delta) \iff \varphi(w^m_{x, \delta'}, w^m_{x + \delta', \delta - \delta'})$#.
+      *)
   Variable Φ_app₁ : (unary_predicate Σ) → nat → nat → formula.
   Variable Φ_app₁_spec : ∀ φ x δ k m,
     Φ_app₁ φ x δ k m ↔ app₁ φ (slice (decode m k) x δ) = true.
@@ -98,7 +126,8 @@ Section encoding.
     Φ_app₂ φ x1 δ1 x2 δ2 k m ↔
       app₂ φ (slice (decode m k) x1 δ1) (slice (decode m k) x2 δ2) = true.
 
-  (* Encode sentence well-formed-ness. *)
+  (** ** Encoding Well-Formedness *)
+  (** Note: this is elided in the paper for simplicity. *)
   Definition Φ_well_formed : formula := λ k m,
     ∀ i, 0 ≤ i < k - 1 →
       line m i < line m (i + 1) ∨ (line m i = line m (i + 1) ∧ col m i < col m (i + 1)).
@@ -141,7 +170,21 @@ Section encoding.
   
   Local Hint Resolve Φ_well_formed_spec well_formed_no_dup : core.
 
-  (* Encode derivation relations. *)
+  (** ** Encoding Derivation Relation *)
+  
+  (** This definition is the encoding for $\Phi_D(k)$.
+      To convert it to our paper's notation, remember:
+      - [can_derive m A x δ] is #$\mathcal{D}^A_{x, \delta}$#
+      - [Φ_app₁ φ x δ k m] is #$\Phi_\varphi(x, \delta)$#
+      - [Φ_app₂ φ x1 δ1 x2 δ2 k m] is #$\Phi_\varphi(x, \delta_1, \delta)$#
+      - [term m x] is #$\mathcal{T}_x$#
+      - [G ⊨ A => []] is #$null(A)$#
+
+      The major difference is that, the "big"-or operator like #$\bigvee_{A \to a \in P} \psi$# in our paper is written by an equivalent existential-form [∃ a, A ↦ atom a ∈ G ∧ \psi] in Coq.
+      We follow this style in encoding the reachability relation and the existence of dissimilar parse trees.
+
+      On the rhs of [↔], the first disjunct [False] corresponds to the case of using epsilon-rule #$A \to \varepsilon$#, but not applicable here. This is elided in the paper; while for ease of proof we explicitly state it here.
+      The other three disjuncts exactly correspond to the three disjuncts displayed in the paper. *)
   Definition Φ_derive : formula := λ k m,
     ∀ A x δ, 0 < δ (* nonempty *) → x + δ ≤ k →
       can_derive m A x δ ↔ (
@@ -286,7 +329,11 @@ Section encoding.
           all: rewrite cons_length; lia.
   Qed.
 
-  (* Encode reachability relation. *)
+  (** ** Encoding Reachability Relation *)
+
+  (** This definition is the encoding for #$\Phi_R^{\not\varepsilon}$#, the nonempty counterpart.
+      The #$ite$# predicate used in our paper is now simply the standard "if-then-else" expression in Coq; and we use [bool_decide : Prop → bool] to convert a decidable proposition into a Boolean value.
+      In a similar way of looking at [Φ_derive], it should be straightforward to convert [Φ_reach_nonempty] into the formula shown in the paper. *)
   Definition Φ_reach_nonempty S : formula := λ k m,
     ∀ B x δ, 0 < δ → x + δ ≤ k →
       can_reach_from m B x δ ↔ (
@@ -300,6 +347,10 @@ Section encoding.
           Φ_app₂ φ (x - δ') δ' x δ k m)
       ).
 
+  (** This definition is the encoding for #$\Phi_R^{\varepsilon}$#, the empty counterpart.
+      The last disjunct on the right hand side of #$\iff$# in the paper is split into two disjuncts here: 
+      - one for #$A \to B \varphi B' \in P$# (i.e., [A ↦ binary B B' φ ∈ G]) 
+      - another for #$A \to B' \varphi B \in P$# (i.e., [A ↦ binary B' B φ ∈ G]) *)
   Definition Φ_reach_empty S : formula := λ k m,
     ∀ B, ε_can_reach_from m B ↔ (
       (B = S ∧ k = 0) ∨
@@ -518,7 +569,11 @@ Section encoding.
           rewrite app_nil_r. apply reachable_from_spec, Φ_reach_nonempty_spec; eauto.
   Qed.
 
-  (* Choice clauses. *)
+  (** ** Encoding the Existence of Dissimilar Parse Trees *)
+
+  (** Syntax of choice clauses: the following four constructors correspond to
+      #$$\psi ::= \varepsilon \mid a \mid B^\varphi \mid B_1^{\delta'} \mathbin\varphi B_2$$#
+      Note: last case [using_binary] requires a [nat] to specify the prefix length #$\delta'$#. *)
   Inductive choice_clause : Type :=
   | using_ε : choice_clause
   | using_atom : Σ → choice_clause
@@ -526,6 +581,9 @@ Section encoding.
   | using_binary : N → N → binary_predicate Σ → nat (* length of first part *) → choice_clause
   .
 
+  (** All possible choice clauses of nonterminal [A] according to the production rules,
+      namely the function #$\Gamma(A, \delta)$# defined in the paper.
+      The auxiliary function [clauses G A] returns all right-hand sides of [A] in grammar [G]. *)
   Definition choice_clauses A δ : list choice_clause :=
     clauses G A ≫= (λ α, match α with
     | ε => [using_ε]
@@ -533,7 +591,7 @@ Section encoding.
     | unary B φ => [using_unary B φ]
     | binary Bl Br φ => (λ δ', using_binary Bl Br φ δ') <$> (index_range δ ++ [δ])
     end).
-
+  
   Lemma elem_of_choice_clauses ψ A δ :
     ψ ∈ choice_clauses A δ ↔ match ψ with
     | using_ε => A ↦ ε ∈ G
@@ -562,8 +620,11 @@ Section encoding.
           [left; apply index_range_elem_of | right; apply elem_of_list_singleton].
   Qed.
   
-  (* Semantically, a choice clause encodes the condition of fulfilling the first derivation step
-     when using this clause. *)
+  (* Semantics of choice clauses: each encodes the condition of fulfilling the first derivation step
+     when using it, namely the function
+     #$$\llbracket\psi\rrbracket_{x, \delta}$$#
+     defined in the paper.
+     Again, the #$ite$# predicate is now simply the standard "if-then-else" expression in Coq. *)
   Definition Φ_choice_sem ψ x δ : formula :=
     match ψ with
     | using_ε => λ k m, δ = 0
@@ -635,11 +696,11 @@ Section encoding.
         finish.
   Qed.
 
-  (* Encode the existence of dissimilar parse trees. *)
+  (** This definition is the encoding of #$\Phi_\text{multi}(A, x, \delta)$#.
+      Although our implementation (as mentioned in the paper) uses #$Two$# to encode, it is logically equivalent to [|{ψ | ψ ∈ choice_clauses A δ ∧ Φ_choice_sem ψ2 x δ k m}| >= 2],
+      which is then reformulated as below:
+        *)
   Definition Φ_multi (A : N) (x δ : nat) : formula := λ k m,
-    (* Here we explicitly states that there exist two distinct choice clauses that are both
-       semantically valid, which is equal to
-       the size of {ψ | ψ ∈ choice_clauses A δ ∧ Φ_choice_sem ψ2 x δ k m} >= 2. *)
     ∃ ψ1, ψ1 ∈ choice_clauses A δ ∧
       ∃ ψ2, ψ2 ∈ choice_clauses A δ ∧
         ψ1 ≠ ψ2 ∧ Φ_choice_sem ψ1 x δ k m ∧ Φ_choice_sem ψ2 x δ k m.
@@ -743,15 +804,20 @@ Section encoding.
       end.
   Qed.
 
-  (* Main encoding: note that Φ_reach := Φ_reach_empty ∧ Φ_reach_nonempty. *)
+  (** ** Overall Encoding *)
+
+  (** The formula #$\Phi(k)$#. *)
   Definition Φ_amb A : formula := λ k m,
     Φ_well_formed k m ∧ Φ_derive k m ∧ Φ_reach A k m ∧ ∃ H,
      (ε_can_reach_from m H ∧ Φ_multi H 0 0 k m) ∨
      (∃ x δ, 0 < δ ∧ x + δ ≤ k ∧ can_reach_from m H x δ ∧ Φ_multi H x δ k m).
 
-  (* Main theorems. *)
+  (** * Formal Properties *)
+
+  (** Soundness. Note that [m ⊨ Φ_amb A k] is just [Φ_amb A k m], 
+     and [decode m k] gives the satisfying sentence. *)
   Theorem Φ_amb_sound A k m :
-    Φ_amb A k m (* i.e., m ⊨ Φ_amb X k *) → derive_amb G A (decode m k).
+    Φ_amb A k m → derive_amb G A (decode m k).
   Proof.
     intros [? [? [[? ?] [X HX]]]].
     apply derive_amb_iff_local_amb => //.
@@ -763,8 +829,9 @@ Section encoding.
       eapply Φ_multi_spec in Hm; eauto. naive_solver.
   Qed.
 
+  (** Completeness. Note that [∃ m, Φ_amb X k m] is just "[Φ_amb X k] is satisfiable". *)
   Theorem Φ_amb_complete X k w :
-    well_formed w → length w = k → derive_amb G X w → ∃ m, Φ_amb X k m (* i.e., Φ_amb X k is sat *).
+    well_formed w → length w = k → derive_amb G X w → ∃ m, Φ_amb X k m.
   Proof.
     intros ? <- Hamb.
     apply derive_amb_iff_local_amb in Hamb; eauto.

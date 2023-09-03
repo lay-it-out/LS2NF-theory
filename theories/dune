@@ -1,4 +1,6 @@
 (coq.theory
   (name LS2NF)
   (package LS2NF)
-  (synopsis "Meta-theories on LS2NF and ambiguity encoding"))
+  (synopsis "Meta-theories on LS2NF and ambiguity encoding")
+  (theories stdpp)
+  (coqdoc_flags --html --utf8))

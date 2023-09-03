@@ -1,3 +1,3 @@
-(lang dune 2.7)
+(lang dune 3.9)
 (name LS2NF)
-(using coq 0.2)
+(using coq 0.8)
