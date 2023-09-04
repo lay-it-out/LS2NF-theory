@@ -1,6 +1,8 @@
 From stdpp Require Import relations sorting.
 From Coq Require Import ssreflect.
 
+(** * Utility Lemmas *)
+
 Ltac invert H := inversion H; subst; clear H.
 
 Fixpoint index_range (n : nat) : list nat :=

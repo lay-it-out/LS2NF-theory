@@ -2,6 +2,8 @@ From stdpp Require Import relations list.
 From Coq Require Import ssreflect.
 From LS2NF Require Import grammar.
 
+(** * Witness Relation Properties *)
+
 Section witness.
 
   Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.

@@ -9,7 +9,9 @@ Section ambiguity.
 
   Open Scope grammar_scope.
 
-  (* Similarity of parse trees who have the same root and word. *)
+  (** * Similarity of Parse Trees *)
+
+  (** Similarity: two parse trees are similar if they have the same root and the same word. *)
   Definition similar t1 t2 : Prop :=
     match t1, t2 with
     | ε_tree _, ε_tree _ => True
@@ -28,21 +30,23 @@ Section ambiguity.
 
   Context `{!EqDecision Σ} `{!EqDecision N}.
   Context (G : grammar Σ N).
+
+  (** * Two Notions of Ambiguity *)
   
-  (* Derivation ambiguity: standard notion of ambiguity. *)
+  (** Derivation ambiguity: standard notion of ambiguity. *)
   Definition derive_amb A w : Prop :=
     ∃ t1 t2, t1 ▷ A ={G}=> w ∧ t2 ▷ A ={G}=> w ∧ t1 ≠ t2.
 
-  (* Our notion of local ambiguity. *)
+  (** Our notion of _local ambiguity_ (Definition 4.4). *)
   Definition local_amb A w : Prop :=
     ∃ H h, reachable G (A, w) (H, h) ∧
       ∃ t1 t2, t1 ▷ H ={G}=> h ∧ t2 ▷ H ={G}=> h ∧ ¬ (similar t1 t2).
 
-  (* In the following, we are going to show that local ambiguity ↔ derivation ambiguity. *)
+  (** * They Are Equal *)
   
-  (* First direction : local ambiguity → derivation ambiguity *)
+  (** We first show: local ambiguity → derivation ambiguity. *)
   
-  (* Substitute s for a subtree t in tree T. *)
+  (** We start by defining a function that substitutes [s] for a subtree [t] in tree [T]. *)
   Fixpoint replace T t s :=
     match T with
     | unary_tree A t1 =>
@@ -133,20 +137,33 @@ Section ambiguity.
   Lemma local_amb_implies_derive_amb A w :
     local_amb A w → derive_amb A w.
   Proof.
+    (** Proof outline:
+        Let [(H, h)] be a signature such that [Hr: reachable G (A, w) (H, h)].
+        Let [t_1] and [t_2] be two dissimilar ([Hnot: ¬ similar t1 t2]) parse trees that both
+        [▷ H ={ G }=> h]. *)
     intros [H [h [Hr [t1 [t2 [Ht1 [Ht2 Hnot]]]]]]].
+    (** By [reachable_spec], there exist [t] such that [Ht: t ▷ A ={ G }=> w] and that
+        [Hsub: subtree t_1 t]. *)
     apply reachable_spec in Hr; last by exists t1.
     specialize (Hr _ Ht1) as [t [Ht Hsub]].
+    (** By substituting [t_2] for [t_1] in [t], we obtain a new parse tree [t']. *)
     edestruct (replace_Some _ _ t2 Hsub) as [t' ?].
-    exists t', t. split; last (split; first done).
+    (** We claim that [t'] and [t] are the two trees that witness the ambiguity. *)
+    exists t', t.
+    (** To see this, first of all [t ▷ A ={ G }=> w] is exactly [Ht]. *)
+    split; last (split; first done).
+    (** Then [t' ▷ A ={ G }=> w] is true from the property of substitution. *)
     - eapply replace_witness; last done. all: done.
+    (** Finally, they are not similar. *)
     - intros <-.
       have ? : t2 = t1 by eapply replace_id; eauto.
       subst. apply Hnot, similar_refl.
   Qed.
 
-  (* second direction : derivation ambiguity → local ambiguity *)
+  (** We then show: derivation ambiguity → local ambiguity. *)
 
-  (* diff two trees with same root and sentence *)
+  (* Tree difference: given two trees with the same root and word, compare their node pairs in a 
+     depth-first order and immediately return the node pair that is found different. *)
   Fixpoint diff t1 t2 :=
     match t1, t2 with
     | ε_tree _, ε_tree _ => None
@@ -229,20 +246,29 @@ Section ambiguity.
   Lemma derive_amb_implies_local_amb A w :
     derive_amb A w → local_amb A w.
   Proof.
+    (** Proof outline:
+        Let [t_1 ≠ t_2] be the two trees that witness the ambiguity. *)
     intros [t1 [t2 [[Hr1 [Hw1 ?]] [[? [? ?]] ?]]]].
+    (** Applying the [diff] algorithm we obtain two subtrees, say [t_1'] from [t_1] and
+        [t_2'] from [t_2] *)
     have [[t1' t2'] Hdiff] : is_Some (diff t1 t2).
     { apply not_eq_None_Some. intros Hcontra. apply diff_None in Hcontra => //.
       all: congruence. }
     have [Hsub1 Hsub2] := (diff_result_subtree _ _ _ _ Hdiff).
+    (** We have [t1'] is valid. *)
     have Ht1' : t1' ▷ root t1' ={G}=> word t1'.
     { repeat split. eapply subtree_valid; eauto. }
+    (** Pick the root and word of [t1'] as the signature. *)
     exists (root t1'), (word t1'). split.
+    (** By the property of substitution, we can show this signature is reachable from [(A, w)]. *)
     - apply reachable_spec; first by exists t1'.
       intros t' Ht'.
       edestruct (replace_Some _ _ t' Hsub1) as [T ?].
       exists T. split; last eapply replace_subtree; eauto.
       eapply replace_witness. 2: apply Ht1'. 2: apply Ht'. 2: eauto.
       by repeat split.
+    (** By the property of [diff], we can show [t1'] and [t2'] both witness the chosen signature 
+        and that they are not similar. *)
     - exists t1', t2'.
       have [? ?] : root t1' = root t2' ∧ word t1' = word t2'.
       { eapply diff_Some_inv; last eauto. all: congruence. }
@@ -250,7 +276,7 @@ Section ambiguity.
       eapply diff_result_not_similar; eauto.
   Qed.
 
-  (* Main theorem for this section. *)
+  (** Putting the above results together, we obtain Theorem 4.5. *)
   Theorem derive_amb_iff_local_amb A w :
     derive_amb A w ↔ local_amb A w.
   Proof.

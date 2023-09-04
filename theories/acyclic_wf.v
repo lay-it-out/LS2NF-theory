@@ -1,6 +1,8 @@
 From stdpp Require Import relations finite.
 From Coq Require Import ssreflect.
 
+(** * Acyclic Relation *)
+
 Section acyclic_wf.
   Context {A : Type} (R : relation A).
 
@@ -22,7 +24,8 @@ Section acyclic_wf.
 
   Context `{!EqDecision A} `{!Finite A}.
 
-  Lemma finite_acyclic_flip_wf :
+  (** Reverses of acyclic relations are well-founded. *)
+  Lemma acyclic_flip_wf :
     rel_acyclic R → wf (flip R).
   Proof.
     intros Hno x. apply tc_finite_sn.
@@ -30,7 +33,8 @@ Section acyclic_wf.
     - eexists => ? ?. apply elem_of_enum.
   Qed.
 
-  Lemma finite_acyclic_wf :
+  (** Acyclic relations are well-founded. *)
+  Lemma acyclic_wf :
     rel_acyclic R → wf R.
   Proof.
     intros Hno x. apply tc_finite_sn.

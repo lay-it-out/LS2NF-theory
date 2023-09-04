@@ -2,21 +2,11 @@ From stdpp Require Import prelude sorting finite.
 From Coq Require Import ssreflect.
 From LS2NF Require Import grammar util ambiguity acyclic sub_derive slice derivation witness.
 
-(** # <script type="text/javascript"
-  src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML">
-</script>
-<script type="text/x-mathjax-config">
-MathJax.Hub.Config({
-  tex2jax: {inlineMath: [['$','$']]}
-});
-</script># *)
-
 Section encoding.
 
-  (** Assume the alphabet is a finite nonempty set, where every two tokens 
-     can be trivially decided equal or not equal.
-     Assume the nonterminal symbol set is finite and also every two symbols
-     can be trivially decided equal or not equal. *)
+  (** * Assumptions *)
+
+  (** Assuming the terminal set [Σ] and nonterminal set [N] are finite. *)
   Context {Σ N : Type} `{!EqDecision Σ} `{!Inhabited Σ} `{!EqDecision N} `{!Finite N}.
   
   (** Consider an acyclic LS2NF [G]. *)
@@ -25,7 +15,7 @@ Section encoding.
   Open Scope grammar_scope.
 
   (** * Satisfying Model *)
-  (** As mentioned in §5.1, a satisfying model consists of two categories of variables.
+  (** As mentioned in the paper, a satisfying model consists of two categories of variables.
       
       First, we encode the ambiguous sentence with the following three groups of variables:
       - [term i] for #$\mathcal{T}_i$#, the token at index [i]
@@ -261,6 +251,7 @@ Section encoding.
     naive_solver.
   Qed.
   
+  (** Correctness of [Φ_derive] (Lemma 5.1). *)
   Lemma Φ_derive_spec k m :
     Φ_well_formed k m →
     Φ_derive k m →
@@ -490,6 +481,7 @@ Section encoding.
     intros ? <-. split; by [apply Φ_reach_nonempty_sat | apply Φ_reach_empty_sat].
   Qed.
 
+  (** Correctness of [Φ_reach_nonempty] (Lemma 5.4). *)
   Lemma Φ_reach_nonempty_spec k S m :
     Φ_well_formed k m →
     Φ_derive k m →
@@ -533,6 +525,7 @@ Section encoding.
       * eapply Φ_derive_spec; eauto; lia.
   Qed.
 
+  (** Correctness of [Φ_reach_empty] (Lemma 5.3). *)
   Lemma Φ_reach_empty_spec S k m :
     Φ_well_formed k m →
     Φ_derive k m →
@@ -621,9 +614,7 @@ Section encoding.
   Qed.
   
   (* Semantics of choice clauses: each encodes the condition of fulfilling the first derivation step
-     when using it, namely the function
-     #$$\llbracket\psi\rrbracket_{x, \delta}$$#
-     defined in the paper.
+     when using it, namely the function #$[[\psi]]_{x, \delta}$# defined in the paper.
      Again, the #$ite$# predicate is now simply the standard "if-then-else" expression in Coq. *)
   Definition Φ_choice_sem ψ x δ : formula :=
     match ψ with
@@ -724,6 +715,7 @@ Section encoding.
       rewrite H1 in H; rewrite H2 in H
     end.
 
+  (** Correctness of [Φ_multi] (Lemma 5.7). *)
   Lemma Φ_multi_spec k m x δ A :
     Φ_well_formed k m →
     Φ_derive k m →
@@ -814,7 +806,7 @@ Section encoding.
 
   (** * Formal Properties *)
 
-  (** Soundness. Note that [m ⊨ Φ_amb A k] is just [Φ_amb A k m], 
+  (** Soundness (Theorem 5.9). Note that [m ⊨ Φ_amb A k] is just [Φ_amb A k m],
      and [decode m k] gives the satisfying sentence. *)
   Theorem Φ_amb_sound A k m :
     Φ_amb A k m → derive_amb G A (decode m k).
@@ -829,7 +821,8 @@ Section encoding.
       eapply Φ_multi_spec in Hm; eauto. naive_solver.
   Qed.
 
-  (** Completeness. Note that [∃ m, Φ_amb X k m] is just "[Φ_amb X k] is satisfiable". *)
+  (** Completeness (Theorem 5.10). Note that [∃ m, Φ_amb X k m] is just
+      "[Φ_amb X k] is satisfiable". *)
   Theorem Φ_amb_complete X k w :
     well_formed w → length w = k → derive_amb G X w → ∃ m, Φ_amb X k m.
   Proof.

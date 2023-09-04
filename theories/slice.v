@@ -1,6 +1,8 @@
 From stdpp Require Import list.
 From Coq Require Import ssreflect.
 
+(** * List Slice Properties *)
+
 Ltac normalize_app_assoc :=
   repeat match goal with
   | [ |- context [ (?l1 ++ ?l2) ++ ?l3 ] ] => rewrite -app_assoc
@@ -11,8 +13,8 @@ Section slice.
   Implicit Type l : list A.
   Implicit Type a k : nat.
 
-  (* l[a..a+k) *)
-  Definition slice l a k : list A :=
+  (** The sub-list of [l] with starting index [a] and length [k]. *)
+  Definition slice l a (* offset *) k (* length *) : list A :=
     take k (drop a l).
 
   Lemma slice_nil l a :

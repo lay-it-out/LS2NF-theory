@@ -3,4 +3,7 @@
   (package LS2NF)
   (synopsis "Meta-theories on LS2NF and ambiguity encoding")
   (theories stdpp)
-  (coqdoc_flags --html --utf8))
+  (coqdoc_flags --utf8 --toc --toc-depth 2 --html --interpolate
+    --index indexpage --no-lib-name --parse-comments
+    --with-header %{env:LS2NF_ROOT=.}/coqdocjs/header.html
+    --with-footer %{env:LS2NF_ROOT=.}/coqdocjs/footer.html))

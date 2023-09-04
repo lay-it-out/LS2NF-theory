@@ -4,6 +4,8 @@ From LS2NF Require Import grammar util slice.
 
 Section sub_derive.
 
+  (** * Preliminary: Subtree Relation *)
+
   Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.
   Context (G : grammar Σ N).
 
@@ -12,7 +14,7 @@ Section sub_derive.
 
   Open Scope grammar_scope.
 
-  (* A node is a child of another node. *)
+  (** Child relation: [child t1 t2] indicates that tree [t1] is a child of [t2]. *)
   Inductive child : relation (@tree Σ N) :=
   | child_unary A t :
     child t (unary_tree A t)
@@ -31,10 +33,11 @@ Section sub_derive.
     all: naive_solver.
   Qed.
 
-  (* Subtree relation. *)
+  (** Subtree relation: [subtree t1 t2] indicates that tree [t1] is a subtree of [t2], which is 
+      indeed the reflexive transitive closure of [child]. *)
   Definition subtree := rtc child.
 
-  (* By definition, subtree is transitive. *)
+  (** Tree validity is reserved under [subtree] relation. *)
   Lemma subtree_valid t t' :
     subtree t' t →
     ✓{G} t →
@@ -44,7 +47,7 @@ Section sub_derive.
     eapply child_valid; eauto.
   Qed.
 
-  (* inversion lemmas *)
+  (** Inversion lemmas about [subtree]. *)
 
   Lemma subtree_ε_inv t A :
     subtree t (ε_tree A) → t = ε_tree A.
@@ -80,17 +83,19 @@ Section sub_derive.
     all: naive_solver.
   Qed.
 
-  (* A signature is a pair of nonterminal with a sentence. *)
+  (** * Sub-Derivation Relation *)
+
+  (** A _signature_ is a pair of a nonterminal equipped with a sentence. *)
   Definition sig : Type := N * sentence Σ.
 
-  (* Sub-derivation. *)
+  (** Sub-derivation relation [sub_derive] (Definition 4.1). *)
   Definition sub_derive : relation sig :=
     λ σ1 σ2, match σ1, σ2 with (A, w), (B, v) =>
       ∀ t', t' ▷ B ={G}=> v →
         ∃ t, t ▷ A ={G}=> w ∧ subtree t' t
     end.
 
-  (* Sub-derivation is transitive. *)
+  (** [sub_derive] is transitive. *)
   Global Instance sub_derive_trans : Transitive sub_derive.
   Proof.
     intros [A w] [B v] [C u] HAB HBC t Ht.
@@ -99,7 +104,9 @@ Section sub_derive.
     exists t2. split; [done | etrans; eauto].
   Qed.
 
-  (* One-step reachability relation. *)
+  (** * Reachability Relation *)
+
+  (** One-step reachability relation [→₁] used in Definition 4.2. *)
   Inductive step : relation sig :=
   | step_unary A B φ w :
     A ↦ unary B φ ∈ G →
@@ -119,7 +126,7 @@ Section sub_derive.
 
   Infix "→₁" := step (at level 40).
 
-  (* Reachability relation: reflexive transitive closure of →₁. *)
+  (** Reachability relation [→∗] (Definition 4.2): reflexive transitive closure of [→₁]. *)
   Definition reachable : relation sig := rtc step.
 
   Infix "→∗" := reachable (at level 40).
@@ -142,7 +149,7 @@ Section sub_derive.
       * apply rtc_once. constructor.
   Qed.
 
-  (* Relating →∗ with sub_derive. *)
+  (** The relationship between [→∗] and [sub_derive] (Lemma 4.3). *)
   Lemma reachable_spec A w B v :
     G ⊨ B => v →
     (A, w) →∗ (B, v) ↔ sub_derive (A, w) (B, v).
@@ -199,7 +206,7 @@ Section sub_derive.
     apply reachable_sub_sig.
   Qed.
 
-  (* A specialization of sig1 →∗ sig2 when target sig2 is fixed. *)
+  (** A specialization of [σ₁ →∗ σ₂] when the target [σ₂] is fixed. *)
   Inductive reachable_to σ : sig → Prop :=
   | reachable_to_refl :
     reachable_to σ σ
@@ -239,7 +246,7 @@ Section sub_derive.
       + eapply reachable_to_right; eauto.
   Qed.
 
-  (* A specialization of sig1 →∗ sig2 when source sig1 is fixed. *)
+  (** A specialization of [σ₁ →∗ σ₂] when the source [σ₁] is fixed. *)
   Inductive reachable_from σ : sig → Prop :=
   | reachable_from_refl :
     reachable_from σ σ
