@@ -55,12 +55,19 @@ Section encoding.
     intros. rewrite list_lookup_fmap index_range_lookup //.
   Qed.
 
-  (** Encode a model that encodes the given sentence [w]. *)
+  (** Encode a model that encodes the given sentence [w].
+      Note that the type class constraint [`{!Inhabited Σ}] is used to obtain an inhabitant as
+      a placeholder value for constructing [term : nat → Σ]. Ideally, [term] should be defined 
+      as a _partial_ function [nat → option Σ] which will be undefined for any outside index
+      [i >= length w], or even fancier [vec Σ (length w)], i.e., a vector of [Σ] with exactly
+      [length w] elements. However, either approach will bring laborious work in Coq formulation.
+      So here, we intentionally define [term] as a total function, but will only access its value
+      for valid indices less than [length w]. *)
   Definition encode S (w : sentence Σ) : model := {|
     term i :=
       match w !! i with
       | Some (a @ _) => a
-      | None => inhabitant
+      | None => inhabitant (* Σ is nonempty *)
       end;
     line i :=
       match w !! i with
@@ -99,14 +106,12 @@ Section encoding.
   Definition formula : Type := nat → model → Prop.
 
   (** ** Encoding Layout Constraints *)
-  (** For every possible layout constraint used in the grammar,
-      we assume there is a formula that consistently encodes its semantics.
-      In the following, we assume there are encoding functions [Φ_app₁] (for unary) 
-      and [Φ_app₂] (for binary).
-      
-      The axiom [Φ_app₁_spec] says, for a unary constraint #$\varphi$#, #$\Phi_\varphi(x, \delta) \iff \varphi(w^m_{x, \delta})$#;
-      the axiom [Φ_app₂_spec] says, for a binary constraint #$\varphi$#, #$\Phi_\varphi(x, \delta', \delta) \iff \varphi(w^m_{x, \delta'}, w^m_{x + \delta', \delta - \delta'})$#.
-      *)
+
+  (** For every possible layout constraint used in the grammar, we assume there is a formula,
+      encoded by [Φ_app₁] (for unary) or [Φ_app₂] (for binary), that consistently encodes its
+      semantics, as required by axiom [Φ_app₁_spec] or [Φ_app₂_spec].
+
+      Note: [Φ_app₂ φ x1 δ1 x2 δ2 k m] corresponds to #$\Phi_\varphi(x_1, \delta_1, \delta_1 + \delta_2)$# when [x2 = x1 + δ1]. *)
   Variable Φ_app₁ : (unary_predicate Σ) → nat → nat → formula.
   Variable Φ_app₁_spec : ∀ φ x δ k m,
     Φ_app₁ φ x δ k m ↔ app₁ φ (slice (decode m k) x δ) = true.
@@ -117,6 +122,7 @@ Section encoding.
       app₂ φ (slice (decode m k) x1 δ1) (slice (decode m k) x2 δ2) = true.
 
   (** ** Encoding Well-Formedness *)
+  
   (** Note: this is elided in the paper for simplicity. *)
   Definition Φ_well_formed : formula := λ k m,
     ∀ i, 0 ≤ i < k - 1 →
@@ -166,7 +172,7 @@ Section encoding.
       To convert it to our paper's notation, remember:
       - [can_derive m A x δ] is #$\mathcal{D}^A_{x, \delta}$#
       - [Φ_app₁ φ x δ k m] is #$\Phi_\varphi(x, \delta)$#
-      - [Φ_app₂ φ x1 δ1 x2 δ2 k m] is #$\Phi_\varphi(x, \delta_1, \delta)$#
+      - [Φ_app₂ φ x δ' (x + δ') (δ - δ') k m] is #$\Phi_\varphi(x, \delta', \delta)$#
       - [term m x] is #$\mathcal{T}_x$#
       - [G ⊨ A => []] is #$null(A)$#
 

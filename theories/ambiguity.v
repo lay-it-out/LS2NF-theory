@@ -11,13 +11,18 @@ Section ambiguity.
 
   (** * Similarity of Parse Trees *)
 
-  (** Similarity: two parse trees are similar if they have the same root and the same word. *)
+  (** Similarity here is defined assuming the parse trees have the same root and the same word. 
+      Thus, it will be a bit different from the paper definition:
+      - We elided the equality of root node;
+      - For the binary case: the condition [word tB1 = word tB2] is ignored because it is immediate 
+        from the fact that [word (binary_tree R tA1 tB1) = word (binary_tree R tA2 tB2)].
+  *)
   Definition similar t1 t2 : Prop :=
     match t1, t2 with
     | ε_tree _, ε_tree _ => True
-    | token_tree R1 tk1, token_tree R2 tk2 => tk1 = tk2
-    | unary_tree R1 t1, unary_tree R2 t2 => root t1 = root t2
-    | binary_tree R1 tA1 tB1, binary_tree R2 tA2 tB2 =>
+    | token_tree _ tk1, token_tree _ tk2 => tk1 = tk2
+    | unary_tree _ t1, unary_tree _ t2 => root t1 = root t2
+    | binary_tree _ tA1 tB1, binary_tree _ tA2 tB2 =>
         root tA1 = root tA2 ∧ root tB1 = root tB2 ∧ word tA1 = word tA2
     | _, _ => False
     end.
@@ -154,7 +159,7 @@ Section ambiguity.
     split; last (split; first done).
     (** Then [t' ▷ A ={ G }=> w] is true from the property of substitution. *)
     - eapply replace_witness; last done. all: done.
-    (** Finally, they are not similar. *)
+    (** Finally, they are not equal because [t_1] and [t_2] are dissimilar. *)
     - intros <-.
       have ? : t2 = t1 by eapply replace_id; eauto.
       subst. apply Hnot, similar_refl.
@@ -250,7 +255,7 @@ Section ambiguity.
         Let [t_1 ≠ t_2] be the two trees that witness the ambiguity. *)
     intros [t1 [t2 [[Hr1 [Hw1 ?]] [[? [? ?]] ?]]]].
     (** Applying the [diff] algorithm we obtain two subtrees, say [t_1'] from [t_1] and
-        [t_2'] from [t_2] *)
+        [t_2'] from [t_2]. *)
     have [[t1' t2'] Hdiff] : is_Some (diff t1 t2).
     { apply not_eq_None_Some. intros Hcontra. apply diff_None in Hcontra => //.
       all: congruence. }
