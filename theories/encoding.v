@@ -111,7 +111,8 @@ Section encoding.
       encoded by [Φ_app₁] (for unary) or [Φ_app₂] (for binary), that consistently encodes its
       semantics, as required by axiom [Φ_app₁_spec] or [Φ_app₂_spec].
 
-      Note: [Φ_app₂ φ x1 δ1 x2 δ2 k m] corresponds to #$\Phi_\varphi(x_1, \delta_1, \delta_1 + \delta_2)$# when [x2 = x1 + δ1]. *)
+      Note: [Φ_app₂ φ x1 δ1 x2 δ2 k m] corresponds to #$\Phi_\varphi(x_1, \delta_1, 
+      \delta_1 + \delta_2)$# when [x2 = x1 + δ1]. *)
   Variable Φ_app₁ : (unary_predicate Σ) → nat → nat → formula.
   Variable Φ_app₁_spec : ∀ φ x δ k m,
     Φ_app₁ φ x δ k m ↔ app₁ φ (slice (decode m k) x δ) = true.
@@ -176,10 +177,14 @@ Section encoding.
       - [term m x] is #$\mathcal{T}_x$#
       - [G ⊨ A => []] is #$null(A)$#
 
-      The major difference is that, the "big"-or operator like #$\bigvee_{A \to a \in P} \psi$# in our paper is written by an equivalent existential-form [∃ a, A ↦ atom a ∈ G ∧ \psi] in Coq.
-      We follow this style in encoding the reachability relation and the existence of dissimilar parse trees.
+      The major difference is that, the "big"-or operator like #$\bigvee_{A \to a \in P} \psi$# in 
+      our paper is written by an equivalent existential-form [∃ a, A ↦ atom a ∈ G ∧ \psi] in Coq.
+      We follow this style in encoding the reachability relation and the existence of dissimilar 
+      parse trees.
 
-      On the rhs of [↔], the first disjunct [False] corresponds to the case of using epsilon-rule #$A \to \varepsilon$#, but not applicable here. This is elided in the paper; while for ease of proof we explicitly state it here.
+      On the rhs of [↔], the first disjunct [False] corresponds to the case of using epsilon-rule 
+      #$A \to \varepsilon$#, but not applicable here. This is elided in the paper; while for ease 
+      of proof we explicitly state it here.
       The other three disjuncts exactly correspond to the three disjuncts displayed in the paper. *)
   Definition Φ_derive : formula := λ k m,
     ∀ A x δ, 0 < δ (* nonempty *) → x + δ ≤ k →
@@ -329,8 +334,10 @@ Section encoding.
   (** ** Encoding Reachability Relation *)
 
   (** This definition is the encoding for #$\Phi_R^{\not\varepsilon}$#, the nonempty counterpart.
-      The #$ite$# predicate used in our paper is now simply the standard "if-then-else" expression in Coq; and we use [bool_decide : Prop → bool] to convert a decidable proposition into a Boolean value.
-      In a similar way of looking at [Φ_derive], it should be straightforward to convert [Φ_reach_nonempty] into the formula shown in the paper. *)
+      The #$ite$# predicate used in our paper is now simply the standard "if-then-else" expression 
+      in Coq; and we use [bool_decide : Prop → bool] to convert a decidable proposition into a 
+      Boolean value. In a similar way of looking at [Φ_derive], it should be straightforward to 
+      convert [Φ_reach_nonempty] into the formula shown in the paper. *)
   Definition Φ_reach_nonempty S : formula := λ k m,
     ∀ B x δ, 0 < δ → x + δ ≤ k →
       can_reach_from m B x δ ↔ (
@@ -344,10 +351,7 @@ Section encoding.
           Φ_app₂ φ (x - δ') δ' x δ k m)
       ).
 
-  (** This definition is the encoding for #$\Phi_R^{\varepsilon}$#, the empty counterpart.
-      The last disjunct on the right hand side of #$\iff$# in the paper is split into two disjuncts here: 
-      - one for #$A \to B \varphi B' \in P$# (i.e., [A ↦ binary B B' φ ∈ G]) 
-      - another for #$A \to B' \varphi B \in P$# (i.e., [A ↦ binary B' B φ ∈ G]) *)
+  (** This definition is the encoding for #$\Phi_R^{\varepsilon}$#, the empty counterpart. *)
   Definition Φ_reach_empty S : formula := λ k m,
     ∀ B, ε_can_reach_from m B ↔ (
       (B = S ∧ k = 0) ∨
@@ -619,9 +623,9 @@ Section encoding.
           [left; apply index_range_elem_of | right; apply elem_of_list_singleton].
   Qed.
   
-  (* Semantics of choice clauses: each encodes the condition of fulfilling the first derivation step
-     when using it, namely the function #$[[\psi]]_{x, \delta}$# defined in the paper.
-     Again, the #$ite$# predicate is now simply the standard "if-then-else" expression in Coq. *)
+  (** Semantics of choice clauses: each encodes the condition of fulfilling the first derivation 
+      step when using it, namely the function #$[[\psi]]_{x, \delta}$# defined in the paper.
+      Again, the #$ite$# predicate is now simply the standard "if-then-else" expression in Coq. *)
   Definition Φ_choice_sem ψ x δ : formula :=
     match ψ with
     | using_ε => λ k m, δ = 0
@@ -693,10 +697,10 @@ Section encoding.
         finish.
   Qed.
 
-  (** This definition is the encoding of #$\Phi_\text{multi}(A, x, \delta)$#.
-      Although our implementation (as mentioned in the paper) uses #$Two$# to encode, it is logically equivalent to [|{ψ | ψ ∈ choice_clauses A δ ∧ Φ_choice_sem ψ2 x δ k m}| >= 2],
-      which is then reformulated as below:
-        *)
+  (** This definition is the encoding of #$\Phi_\text{multi}(A, x, \delta)$#. Although our
+      implementation (as mentioned in the paper) uses #$Two$# to encode, it is logically equivalent
+      to [|{ψ | ψ ∈ choice_clauses A δ ∧ Φ_choice_sem ψ x δ k m}| >= 2], which is restated as
+      the following existential form: *)
   Definition Φ_multi (A : N) (x δ : nat) : formula := λ k m,
     ∃ ψ1, ψ1 ∈ choice_clauses A δ ∧
       ∃ ψ2, ψ2 ∈ choice_clauses A δ ∧
@@ -813,7 +817,7 @@ Section encoding.
   (** * Formal Properties *)
 
   (** Soundness (Theorem 5.9). Note that [m ⊨ Φ_amb A k] is just [Φ_amb A k m],
-     and [decode m k] gives the satisfying sentence. *)
+      and [decode m k] gives the satisfying sentence. *)
   Theorem Φ_amb_sound A k m :
     Φ_amb A k m → derive_amb G A (decode m k).
   Proof.
