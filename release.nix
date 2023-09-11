@@ -34,7 +34,9 @@
       '';
 
       installPhase = ''
-        echo "Build done."
+        make doc
+        mkdir -p $out/share
+        mv doc_generated $out/share/
       '';
 
       meta = {

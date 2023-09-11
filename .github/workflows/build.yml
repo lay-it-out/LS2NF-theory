@@ -1,12 +1,44 @@
 name: Build
 on: [push]
 jobs:
-  Coq-Build:
-    runs-on: ubuntu-latest  # container actions require GNU/Linux
+  compile:
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: cachix/install-nix-action@v22
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Nix
+        uses: cachix/install-nix-action@v22
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: nix build
-      - run: nix flake check
+
+      - name: Nix build
+        run: nix build
+
+      - name: Nix check
+        run: nix flake check
+
+      - name: Upload doc
+        uses: actions/upload-artifact@v3
+        with:
+          name: doc
+          path: ./result/share/doc_generated
+
+  doc-deploy:
+    runs-on: ubuntu-latest
+    needs: compile
+    if: github.ref == 'refs/heads/main'  # when pushed to main
+    steps:
+      - name: Download doc
+        uses: actions/download-artifact@v3
+        with:
+          name: doc
+
+      - name: Deploy doc
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          deploy_key: ${{ secrets.LAY_IT_OUT_DEPLOY_KEY }}
+          external_repository: lay-it-out/lay-it-out.github.io
+          publish_branch: main
+          publish_dir: .
+          destination_dir: coqdoc
