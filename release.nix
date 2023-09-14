@@ -36,7 +36,7 @@
       installPhase = ''
         make doc
         mkdir -p $out/share
-        mv doc_generated $out/share/
+        mv doc $out/share/
       '';
 
       meta = {

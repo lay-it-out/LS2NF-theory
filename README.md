@@ -25,17 +25,14 @@ docker build .
 
 This will create a Docker image of NixOS with the above `nix build` command executed.
 
-### Generating Doc
+### Coq Documentation
 
-NOTE: The prebuilt documents can be found in the `doc/` folder. You only do the following if you want to build yourself.
+The prebuilt documents are hosted on our [website](https://lay-it-out.github.io/coqdoc/toc.html).
+You can also find them in the `result/share/doc` folder after running `nix build`.
 
-To generate documentation, type `nix develop` to enter the development shell, which contains all the dependent packages. If you are using Docker, make sure you execute `docker run -it <IMAGE HASH>` to enter the Docker shell first, and then run `nix develop` to enter the development shell.
-
-Then type the following command to build the document:
-```sh
-(nix:coq8.17-LS2NF-dev-env) $ make doc
-```
-The HTML documents will be written to the `doc_generated/` folder under the project root.
+If you really want to generate the documentation yourself:
+Type `nix develop` to enter the development shell and then run `make doc`.
+The HTML files will be written to the `doc/` folder under the project root.
 
 ## Step Into the Code
 

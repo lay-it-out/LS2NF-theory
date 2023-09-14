@@ -12,12 +12,12 @@ uninstall:
 
 doc:
 	LS2NF_ROOT=`pwd` dune build theories/LS2NF.html/
-	rm -rf doc_generated/
-	cp -R _build/default/theories/LS2NF.html/ doc_generated/
-	cp -R coqdocjs/resources/ doc_generated/
+	rm -rf doc/
+	cp -R _build/default/theories/LS2NF.html/ doc/
+	cp -R coqdocjs/resources/ doc/
 .PHONY: doc
 
 clean:
 	@dune clean
-	rm -rf doc_generated/
+	rm -rf doc/
 .PHONY: clean

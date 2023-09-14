@@ -11,4 +11,4 @@ _build/
 .nia.cache
 .vscode/
 result
-doc_generated/
+doc/
