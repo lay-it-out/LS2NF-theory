@@ -1,9 +1,12 @@
 # Layout Sensitive Binary Normal Form (LS2NF) Theories
 
 [![Build][build-badge]][build-link]
+[![DOI][DOI-badge]][DOI-link]
 
 [build-badge]: https://github.com/lay-it-out/LS2NF-theory/actions/workflows/build.yml/badge.svg?branch=main
 [build-link]: https://github.com/lay-it-out/LS2NF-theory/actions/workflows/build.yml
+[DOI-badge]: https://zenodo.org/badge/DOI/10.5281/zenodo.8329981.svg
+[DOI-link]: https://doi.org/10.5281/zenodo.8329981
 
 This repository contains the Coq formulation on LS2NF, its properties, and a sound and complete SMT encoding for checking its bounded ambiguity.
 
