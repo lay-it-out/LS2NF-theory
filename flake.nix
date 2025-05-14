@@ -11,9 +11,9 @@
       let
         pkgs = import nixpkgs { inherit system; };
         lib = pkgs.lib;
-        coq = pkgs.coq_8_17;
+        coq = pkgs.coq_8_20;
         ocamlPkgs = coq.ocamlPackages;
-        coqPkgs = pkgs.coqPackages_8_17;
+        coqPkgs = pkgs.coqPackages_8_20;
         version = "LS2NF:main";
       in {
         packages.default =

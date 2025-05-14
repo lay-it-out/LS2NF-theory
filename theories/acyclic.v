@@ -37,10 +37,10 @@ Section acyclic.
 
   (** Both [prec] and [succ] are well-founded relations on acyclic grammars. *)
   Lemma acyclic_prec_wf :
-    acyclic → wf prec.
+    acyclic → well_founded prec.
   Proof. intros. eapply acyclic_flip_wf; eauto. Qed.
   Lemma acyclic_succ_wf :
-    acyclic → wf succ.
+    acyclic → well_founded succ.
   Proof. intros. eapply acyclic_wf; eauto. Qed.
 
 End acyclic.

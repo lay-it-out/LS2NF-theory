@@ -19,7 +19,7 @@ jobs:
         run: nix flake check
 
       - name: Upload doc
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: doc
           path: ./result/share/doc
@@ -30,7 +30,7 @@ jobs:
     if: github.ref == 'refs/heads/main'  # when pushed to main
     steps:
       - name: Download doc
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: doc
 

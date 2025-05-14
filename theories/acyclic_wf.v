@@ -26,7 +26,7 @@ Section acyclic_wf.
 
   (** Reverses of acyclic relations are well-founded. *)
   Lemma acyclic_flip_wf :
-    rel_acyclic R → wf (flip R).
+    rel_acyclic R → well_founded (flip R).
   Proof.
     intros Hno x. apply tc_finite_sn.
     - intros y ?. eapply Hno. apply tc_refl_ex_loop; eauto.
@@ -35,7 +35,7 @@ Section acyclic_wf.
 
   (** Acyclic relations are well-founded. *)
   Lemma acyclic_wf :
-    rel_acyclic R → wf R.
+    rel_acyclic R → well_founded R.
   Proof.
     intros Hno x. apply tc_finite_sn.
     - intros y ?. eapply Hno. apply tc_refl_ex_loop, tc_flip; eauto.

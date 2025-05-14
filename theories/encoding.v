@@ -46,7 +46,7 @@ Section encoding.
   Lemma decode_length m k :
     length (decode m k) = k.
   Proof.
-    by rewrite fmap_length index_range_length.
+    by rewrite length_fmap index_range_length.
   Qed.
 
   Lemma decode_lookup m k i :
@@ -234,9 +234,9 @@ Section encoding.
         * left. rewrite app_nil_l in Hw. by rewrite Hw.
         * right; left. rewrite app_nil_r in Hw. by rewrite Hw.
         * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2]; eauto.
-          rewrite app_length !cons_length in Hl.
+          rewrite length_app !length_cons in Hl.
           exists (length (tk1 :: w1)). rewrite -Hw1 -Hw2.
-          repeat split => //. all: rewrite cons_length; lia.
+          repeat split => //. all: rewrite length_cons; lia.
       + intros [Bl [Br [φ [? [Hd|[Hd|Hd]]]]]].
         * destruct Hd as [? ?].
           exists Bl, Br, φ. split; first done.
@@ -275,7 +275,7 @@ Section encoding.
     generalize dependent x.
     induction δ as [δ IHδ] using lt_wf_ind => x Hk A.
     (* induction on nonterminal *)
-    have Hwf : wf (flip (succ G)) by apply acyclic_prec_wf.
+    have Hwf : well_founded (flip (succ G)) by apply acyclic_prec_wf.
     induction A as [A IHA] using (well_founded_induction Hwf).
     (* rewrite definition *)
     rewrite HΦ; [done..|]. setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
@@ -325,10 +325,10 @@ Section encoding.
         * right; right. apply slice_app_inv_NoDup in Hw as [Hw1 Hw2]; eauto.
           all: rewrite ?decode_length //.
           rewrite Hw1 in HBl, Hφ. rewrite Hw2 in HBr, Hφ.
-          rewrite app_length !cons_length in Hl.
+          rewrite length_app !length_cons in Hl.
           exists (length (tk1 :: w1)). repeat split => //.
           all: try apply IHδ => //.
-          all: rewrite cons_length; lia.
+          all: rewrite length_cons; lia.
   Qed.
 
   (** ** Encoding Reachability Relation *)
@@ -414,7 +414,7 @@ Section encoding.
         * case_bool_decide => //. 
           have Hsub : sublist ((tk :: l) ++ slice w x δ) w by eapply reachable_sublist; eauto.
           apply sublist_app_slice_NoDup in Hsub as [x' [Hlen [Hx' Hl]]];
-            [| eauto | rewrite cons_length; lia | rewrite slice_length; lia].
+            [| eauto | rewrite length_cons; lia | rewrite slice_length; lia].
           rewrite slice_length in Hlen => //. rewrite slice_length in Hl => //.
           apply slice_eq_inv_NoDup in Hl as [? Hδ]; eauto; [|rewrite slice_length; lia..].
           subst. rewrite Nat.add_sub -slice_app_1 -Hx'.
@@ -457,7 +457,7 @@ Section encoding.
         have Hsub : sublist (t :: w') w by eapply reachable_sublist; eauto.
         apply sublist_slice in Hsub as [a [? Hw]].
         exists a, (length (t :: w')).
-        rewrite -Hw. repeat split => //. rewrite cons_length; lia.
+        rewrite -Hw. repeat split => //. rewrite length_cons; lia.
       + intros [A [B' [φ [? [Hr|Hr]]]]].
         * destruct Hr as [? ?].
           exists A, B', φ, [].
@@ -473,7 +473,7 @@ Section encoding.
         have Hsub : sublist (t :: w') w by eapply reachable_sublist; eauto.
         apply sublist_slice in Hsub as [a [? Hw]].
         exists a, (length (t :: w')).
-        rewrite -Hw. repeat split => //. rewrite cons_length; lia.
+        rewrite -Hw. repeat split => //. rewrite length_cons; lia.
       + intros [A [B' [φ [? [Hr|Hr]]]]].
         * destruct Hr as [? ?].
           exists A, B', φ, [].
@@ -507,7 +507,7 @@ Section encoding.
     induction δ as [δ IHδ] using (induction_ltof1 _ (λ δ, k - δ)) => x Hk B.
     unfold ltof in IHδ.
     (* induction on nonterminal *)
-    have Hwf : wf (succ G) by apply acyclic_succ_wf.
+    have Hwf : well_founded (succ G) by apply acyclic_succ_wf.
     induction B as [B IHB] using (well_founded_induction Hwf).
     rewrite HΦ //.
     setoid_rewrite Φ_app₁_spec. setoid_rewrite Φ_app₂_spec.
@@ -547,7 +547,7 @@ Section encoding.
   Proof.
     intros ? ? ? HΦ B. rewrite -reachable_from_spec.
     (* induction on nonterminal *)
-    have Hwf : wf (succ G) by apply acyclic_succ_wf.
+    have Hwf : well_founded (succ G) by apply acyclic_succ_wf.
     induction B as [B IHB] using (well_founded_induction Hwf).
     rewrite HΦ //. intros [Hr|[Hr|[Hr|Hr]]].
       + destruct Hr as [<- ->]. constructor.
@@ -710,7 +710,7 @@ Section encoding.
     l1 ++ l2 = l →
     length l1 ≤ length l.
   Proof.
-    intros Hl. apply (f_equal length) in Hl. rewrite app_length in Hl. lia.
+    intros Hl. apply (f_equal length) in Hl. rewrite length_app in Hl. lia.
   Qed.
 
   Local Lemma wrap_with_id (P : Prop) :
@@ -852,7 +852,7 @@ Section encoding.
       apply sublist_slice in Hsub as [x [? Hh]].
       exists x, (length (tk :: h)).
       simpl can_reach_from. rewrite -Hh. repeat split => //.
-      { rewrite cons_length; lia. }
+      { rewrite length_cons; lia. }
       eapply Φ_multi_spec; eauto.
       rewrite decode_encode -Hh; eauto.
   Qed.

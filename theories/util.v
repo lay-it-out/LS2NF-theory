@@ -15,7 +15,7 @@ Lemma index_range_length n :
   length (index_range n) = n.
 Proof.
   induction n => //=.
-  rewrite app_length /=. lia.
+  rewrite length_app /=. lia.
 Qed.
 
 Lemma index_range_lookup n i :

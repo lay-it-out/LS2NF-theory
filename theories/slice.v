@@ -32,7 +32,7 @@ Section slice.
   Lemma slice_length l a k :
     a + k ≤ length l → length (slice l a k) = k.
   Proof.
-    rewrite take_length drop_length. lia.
+    rewrite length_take length_drop. lia.
   Qed.
 
   Lemma slice_nil_iff l a k :
@@ -165,7 +165,7 @@ Section slice.
   Proof.
     intros ? ? ? ? ? ? Heq.
     have ? : k = k1 + k2.
-    { apply (f_equal length) in Heq. rewrite app_length !slice_length in Heq => //. }
+    { apply (f_equal length) in Heq. rewrite length_app !slice_length in Heq => //. }
     subst.
     have ? : a1 = a.
     { apply (f_equal (lookup 0)) in Heq.
@@ -203,8 +203,8 @@ Section slice.
     ∃ a, a + length l' ≤ length l ∧ l' = slice l a (length l').
   Proof.
     intros [l1 [l2 ->]]. exists (length l1). split.
-    - rewrite !app_length. lia.
-    - by rewrite /slice drop_app take_app.
+    - rewrite !length_app. lia.
+    - by rewrite /slice drop_app_length take_app_length.
   Qed.
 
   Lemma sublist_app_slice_NoDup l l1 l2 :
@@ -221,9 +221,9 @@ Section slice.
     have Hl2 : sublist l2 l by eapply sublist_app_r; eauto.
     apply sublist_slice in Hl2 as [a2 [? Hl2]].
     apply sublist_slice in Hl as [a [Hlen Hl]].
-    rewrite app_length in Hlen.
+    rewrite length_app in Hlen.
     symmetry in Hl. rewrite Hl1 Hl2 in Hl.
-    rewrite app_length !slice_length in Hl => //.
+    rewrite length_app !slice_length in Hl => //.
     apply slice_app_inv_NoDup_aux in Hl => //.
     naive_solver.
   Qed.
@@ -251,10 +251,10 @@ Section slice.
       have ? : k = length (x1 :: l1) by rewrite -Hl slice_length.
       subst. rewrite Nat.sub_diag slice_nil //.
     - apply sublist_app_slice_NoDup in Hsub as [a' [Hlen [Hl1 Hl2]]] => //.
-      2,3: rewrite cons_length; lia.
-      rewrite Hl1 Hl2 in Hl. rewrite cons_length in Hlen.
+      2,3: rewrite length_cons; lia.
+      rewrite Hl1 Hl2 in Hl. rewrite length_cons in Hlen.
       apply slice_app_inv_NoDup_aux in Hl as [? [? ?]] => //.
-      2-4: rewrite cons_length; lia.
+      2-4: rewrite length_cons; lia.
       have -> : k - length (x1 :: l1) = length (x2 :: l2) by lia.
       naive_solver.
   Qed.
