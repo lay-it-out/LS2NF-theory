@@ -1,6 +1,6 @@
-From stdpp Require Import vector.
+From stdpp Require Import relations.
 From Coq Require Import ssreflect.
-From LS2NF Require Import grammar witness ambiguity slice.
+From LS2NF Require Import grammar ambiguity.
 
 Section refinement.
 
@@ -82,15 +82,15 @@ Section refinement.
   Instance grammar_refine_trans : Transitive grammar_refine.
   Proof. intros ?????????. naive_solver. Qed.
 
-  Definition lf_trees G A w (trees : list lf_tree) : Prop :=
+  Definition lf_trees G (A : N) (w : sentence Σ) (trees : list lf_tree) : Prop :=
     ∀ s, lf_tree_witness G s A w ↔ s ∈ trees.
 
   Lemma lf_trees_singleton_not_amb G A w :
     (∃ s, lf_trees G A w [s]) → ¬ (derive_amb G A w).
   Proof.
     intros [s Hs] [t1 [t2 [Ht1 [Ht2 ?]]]].
-    have [? [? _]] := Ht1.
-    have [? [? _]] := Ht2.
+    have [_ [? _]] := Ht1.
+    have [_ [? _]] := Ht2.
     have ? := fill_erase_positions t1.
     have ? := fill_erase_positions t2.
     have Hs1 : lf_tree_witness G (erase_positions t1) A w.
@@ -102,7 +102,8 @@ Section refinement.
     congruence.
   Qed.
 
-  Definition reformatted_words G A w trees words : Prop :=
+  Definition reformatted_words G (A : N) (w : sentence Σ)
+      (trees : list lf_tree) (words : list (sentence Σ)) : Prop :=
     lf_trees G A w trees ∧ length words = length trees ∧ ∀ w', w' ∈ words →
       ∀ s, lf_tree_witness G s A w' → s ∈ trees.
 
