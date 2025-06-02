@@ -1,4 +1,4 @@
-From stdpp Require Import relations.
+From stdpp Require Import vector.
 From Coq Require Import ssreflect.
 From LS2NF Require Import grammar witness ambiguity slice.
 
@@ -7,41 +7,6 @@ Section refinement.
   Context {Σ N : Type} `{!EqDecision Σ} `{!EqDecision N}.
   Implicit Type G : grammar Σ N.
   Open Scope grammar_scope.
-
-  (* We _refine_ a clause by strengthening its layout predicate (if any).
-     The strengthening clause [α'] is said a _refinement_ of the original [α],
-     defined as [clause refine α' α]. *)
-  Inductive clause_refine : relation (clause Σ N) :=
-    | ε_refine : clause_refine ε ε
-    | atom_refine a : clause_refine (atom a) (atom a)
-    | unary_refine A φ' φ : 
-      (∀ w, app₁ φ' w = true → app₁ φ w = true) →
-      clause_refine (unary A φ') (unary A φ)
-    | binary_refine Al Ar φ' φ :
-      (∀ w1 w2, app₂ φ' w1 w2 = true → app₂ φ w1 w2 = true) →
-      clause_refine (binary Al Ar φ') (binary Al Ar φ)
-    .
-
-  (* A grammar [G'] is said a _refinement_ of [G] if all clauses in [G'] are refinements
-     (as defined by [clause_refine]) of those in [G]. *)
-  Definition grammar_refine : relation (grammar Σ N) := λ G' G,
-    ∀ A α', A ↦ α' ∈ G' → ∃ α, clause_refine α' α ∧ A ↦ α ∈ G.
-  
-  Lemma witness_refine G G' t A w :
-    grammar_refine G' G →
-    t ▷ A ={ G' }=> w →
-    t ▷ A ={ G }=> w.
-  Proof.
-    intros Hr.
-    move: A w. induction t as [?|??|?? IHt|?? IHt1 ? IHt2] => A w Ht.
-    all: have [/=? [/=? Hv]] := Ht; subst.
-    all: inversion Hv as [? Hp|??? Hp|??? Hp|???? Hp]; subst.
-    all: destruct (Hr _ _ Hp) as [? [Hcr ?]]; inversion Hcr; subst.
-    - by apply witness_ε.
-    - by apply witness_atom.
-    - eapply witness_unary; last split; eauto. by apply IHt.
-    - eapply witness_binary; last split; last split; eauto; by [apply IHt1 | apply IHt2].
-  Qed.
 
   Inductive lf_tree : Type :=
     | lf_ε_tree (r : N)                             (* empty tree *)
@@ -58,7 +23,7 @@ Section refinement.
     | lf_binary_tree _ sl sr => lf_tree_size sl + lf_tree_size sr
     end.
 
-  Fixpoint fill (w : sentence Σ) (s : lf_tree) : option (@tree Σ N) :=
+  Fixpoint fill_positions (w : sentence Σ) (s : lf_tree) : option (@tree Σ N) :=
     match s with
     | lf_ε_tree A =>
       match w with
@@ -70,86 +35,103 @@ Section refinement.
       | [pt] => if bool_decide (token pt = a) then Some (token_tree A pt) else None
       | _ => None
       end
-    | lf_unary_tree A s => t ← fill w s; Some (unary_tree A t)
+    | lf_unary_tree A s =>
+      t ← fill_positions w s; Some (unary_tree A t)
     | lf_binary_tree A sl sr =>
-      tl ← fill (take (lf_tree_size sl) w) sl;
-      tr ← fill (drop (lf_tree_size sl) w) sr;
+      tl ← fill_positions (take (lf_tree_size sl) w) sl;
+      tr ← fill_positions (drop (lf_tree_size sl) w) sr;
       Some (binary_tree A tl tr)
     end.
-  
-  Fixpoint erase (t : @tree Σ N) : lf_tree :=
+
+  Fixpoint erase_positions (t : @tree Σ N) : lf_tree :=
     match t with
     | ε_tree A => lf_ε_tree A
-    | token_tree A pt => lf_token_tree A (token pt)
-    | unary_tree A t => lf_unary_tree A (erase t)
-    | binary_tree A tl tr => lf_binary_tree A (erase tl) (erase tr)
+    | token_tree A (a @ _) => lf_token_tree A a
+    | unary_tree A t => lf_unary_tree A (erase_positions t)
+    | binary_tree A tl tr => lf_binary_tree A (erase_positions tl) (erase_positions tr)
     end.
 
-  Lemma fill_Some_size w s t' :
-    fill w s = Some t' → lf_tree_size s = length w.
+  Lemma lf_tree_size_spec t :
+    lf_tree_size (erase_positions t) = length (word t).
   Proof.
-    move: w t'. induction s as [|??|A s IHs|A sl IHsl sr IHsr] => w t' /=.
+    induction t => //=.
     - by case_match.
-    - by repeat case_match.
-    - rewrite bind_Some. intros [t [? ?]].
-      erewrite IHs; eauto.
-    - rewrite bind_Some. intros [t1 [? H]].
-      rewrite bind_Some in H. destruct H as [t2 [? ?]].
-      erewrite IHsl; eauto. erewrite IHsr; eauto.
-      rewrite -length_app. apply f_equal. apply take_drop.
+    - rewrite length_app. congruence.
   Qed.
 
-  Lemma fill_erase w t t' :
-    fill w (erase t) = Some t' → fill (word t) (erase t') = Some t.
+  Lemma fill_erase_positions t :
+    fill_positions (word t) (erase_positions t) = Some t.
   Proof.
-      move: w t'. induction t as [|A pt|A t IHt|A tl IHtl tr IHtr] => /= w t'.
-      - case_match => // Ht'. apply Some_inj in Ht'. by subst.
-      - case_match => //. case_match => //. case_bool_decide => // Ht'.
-        apply Some_inj in Ht'. subst => /=. case_bool_decide; congruence.
-      - rewrite bind_Some. intros [t1 [Ht1 Ht']]. apply IHt in Ht1.
-        apply Some_inj in Ht'. by rewrite -Ht' /= Ht1.
-      - rewrite bind_Some. intros [t1 [Ht1 Ht']]. apply IHtl in Ht1.
-        apply bind_Some in Ht' as [t2 [Ht2 Ht']]. apply IHtr in Ht2.
-        apply Some_inj in Ht'. rewrite -Ht' /=.
-        erewrite fill_Some_size; eauto. rewrite take_app_length Ht1 /=.
-        by rewrite drop_app_length Ht2.
-  Qed.
+    induction t => //=.
+    - case_match => /=. by case_bool_decide.
+    - rewrite bind_Some. by exists t.
+    - rewrite lf_tree_size_spec bind_Some. exists t1. split.
+      + by rewrite take_app_length.
+      + rewrite bind_Some. exists t2. by rewrite drop_app_length.
+  Qed. 
 
-  (* Sentence [w'] is a _reformat_ of [w] if [w'] does not introduce any more parse trees. *)
-  Definition reformat G A : relation (sentence Σ) := λ w' w,
-    ∀ t, t ▷ A ={ G }=> w' →
-      ∃ t', fill w (erase t) = Some t' ∧ t' ▷ A ={ G }=> w.
+  Definition lf_tree_witness G (s : lf_tree) (A : N) (w : sentence Σ) :=
+    ∃ t, fill_positions w s = Some t ∧ t ▷ A ={ G }=> w.
 
-  Theorem dis_ambiguity G G' A w w' tₐ :
-    reformat G A w' w →
-    grammar_refine G' G →
-    (∀ t, t ▷ A ={ G }=> w → t ≠ tₐ → 
-      ∃ t', fill w' (erase t) = Some t' ∧ ¬ (t' ▷ A ={ G' }=> w')) →
-    ∀ t', t' ▷ A ={ G' }=> w' → fill w' (erase tₐ) = Some t'.
+  Definition grammar_refine : relation (grammar Σ N) := λ G' G,
+    ∀ s A w, lf_tree_witness G' s A w → lf_tree_witness G s A w.
+
+  Instance grammar_refine_refl : Reflexive grammar_refine.
+  Proof. by intros ?. Qed.
+
+  Instance grammar_refine_trans : Transitive grammar_refine.
+  Proof. intros ?????????. naive_solver. Qed.
+
+  Definition lf_trees G A w (trees : list lf_tree) : Prop :=
+    ∀ s, lf_tree_witness G s A w ↔ s ∈ trees.
+
+  Lemma lf_trees_singleton_not_amb G A w :
+    (∃ s, lf_trees G A w [s]) → ¬ (derive_amb G A w).
   Proof.
-    intros Hr ? Hc t' Ht'.
-    have Htt' := Ht'. eapply witness_refine in Htt'; eauto.
-    apply Hr in Htt' as [t [Htt' Ht]].
-    destruct (bool_decide (t = tₐ)) eqn:Heq.
-    - rewrite bool_decide_eq_true in Heq. subst.
-      destruct Ht' as [_ [? _]]. subst. eapply fill_erase. eauto.
-    - rewrite bool_decide_eq_false in Heq.
-      apply Hc in Ht as [t'' [? Ht'']] => //.
-      apply fill_erase in Htt'. have [_ [? _]] := Ht'. subst.
-      congruence.
-  Qed.
-    
-  Corollary dis_ambiguity' G G' A w w' tₐ :
-    reformat G A w' w →
-    grammar_refine G' G →
-    (∀ t, t ▷ A ={ G }=> w → t ≠ tₐ → 
-      ∃ t', fill w' (erase t) = Some t' ∧ ¬ (t' ▷ A ={ G' }=> w')) →
-    ¬ (derive_amb G' A w').
-  Proof.
-    intros ??? [t1 [t2 [Ht1 [Ht2 ?]]]].
-    eapply dis_ambiguity in Ht1; eauto.
-    eapply dis_ambiguity in Ht2; eauto.
+    intros [s Hs] [t1 [t2 [Ht1 [Ht2 ?]]]].
+    have [? [? _]] := Ht1.
+    have [? [? _]] := Ht2.
+    have ? := fill_erase_positions t1.
+    have ? := fill_erase_positions t2.
+    have Hs1 : lf_tree_witness G (erase_positions t1) A w.
+    { exists t1. split; [congruence|done]. }
+    apply Hs, elem_of_list_singleton in Hs1.
+    have Hs2 : lf_tree_witness G (erase_positions t2) A w.
+    { exists t2. split; [congruence|done]. }
+    apply Hs, elem_of_list_singleton in Hs2.
     congruence.
+  Qed.
+
+  Definition reformatted_words G A w trees words : Prop :=
+    lf_trees G A w trees ∧ length words = length trees ∧ ∀ w', w' ∈ words →
+      ∀ s, lf_tree_witness G s A w' → s ∈ trees.
+
+  Theorem resolve_amb G A w trees words G' :
+    reformatted_words G A w trees words →
+    grammar_refine G' G →
+    (∀ i si wi, trees !! i = Some si → words !! i = Some wi →
+      lf_tree_witness G' si A wi) →
+    (∀ i si j wj, i ≠ j → trees !! i = Some si → words !! j = Some wj →
+      ¬ lf_tree_witness G' si A wj) →
+    ∀ i wi, words !! i = Some wi → ¬ (derive_amb G' A wi).
+  Proof.
+    intros [? [? Hf]] Href Hacc Hrej i wi Hwi.
+    apply lf_trees_singleton_not_amb.
+    have [si ?] : is_Some (trees !! i).
+    { apply lookup_lt_is_Some.
+      have Hi : is_Some (words !! i) by naive_solver.
+      apply lookup_lt_is_Some in Hi. lia. }
+    exists si. split.
+    - (* -> *)
+      intros Hs. rewrite elem_of_list_singleton.
+      have Hs' := Hs. apply Href, Hf in Hs'.
+      2: { apply elem_of_list_lookup; eauto. }
+      apply elem_of_list_lookup in Hs' as [k Hk].
+      have [?|?] : (k = i) ∨ (k ≠ i) by lia. 1: congruence.
+      eapply Hrej in Hk; eauto. congruence.
+    - (* <- *)
+      rewrite elem_of_list_singleton => ->.
+      eapply Hacc; eauto.
   Qed.
 
 End refinement.
